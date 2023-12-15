@@ -1,0 +1,14 @@
+Build Requirements
+------------------
+
+ - cmake 
+ - PolyHook_2_0
+ - MinGW-64
+
+```
+cmake -B build .
+cd build
+make
+```
+
+TBD
