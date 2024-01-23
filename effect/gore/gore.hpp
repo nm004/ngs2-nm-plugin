@@ -5,7 +5,6 @@
 #include <cstdint>
 
 namespace nm_effect::gore {
-
   struct model {
     uintptr_t p_state[3];
     uint8_t mdl_id;
@@ -108,6 +107,21 @@ namespace nm_effect::gore {
     struct objgeo_list *next;
     // imcomplete
   };
+
+  namespace mutil {
+    void init ();
+    void deinit ();
+  }
+
+  namespace crush {
+    void init ();
+    void deinit ();
+  }
+
+  namespace misc {
+    void init ();
+    void deinit ();
+  }
 }
 
 #endif

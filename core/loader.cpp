@@ -1,6 +1,6 @@
 /*
  * NGS2 NM Plugin Loader by Nozomi Miyamori is marked with CC0 1.0
- * A plugin and data loader for NINJA GAIDEN SIGMA2 Master Collection
+ * This module loads plugin and data for NINJA GAIDEN SIGMA2 Master Collection
  */
 #include "util.hpp"
 #include <winbase.h>
@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <span>
 #include <iostream>
+#include <stdexcept>
 
 using namespace std;
 
@@ -24,12 +25,13 @@ namespace {
   uintptr_t get_rawsize_tramp;
 
   bool
-  load_plugins ()
+  load_plugins () noexcept
   {
     // Dll search paths starting from the current directory
     const TCHAR *search_paths[] = {
       TEXT(""),
       TEXT("plugin"),
+      TEXT("databin\\plugin"),
     };
     for (auto &i : search_paths)
       {
@@ -84,10 +86,10 @@ namespace {
   };
 
   HANDLE
-  open_mod_data (uint32_t data_id);
+  open_mod_data (uint32_t data_id) noexcept;
 
   bool
-  load_data (ProductionPackage *thisptr, void *param2, struct data_info &di, void *out_buf)
+  load_data (ProductionPackage *thisptr, void *param2, struct data_info &di, void *out_buf) noexcept
   {
     auto &dbi = thisptr->databin_info;
     uintptr_t addr = reinterpret_cast<uintptr_t>(&dbi) + sizeof(dbi);
@@ -111,7 +113,7 @@ namespace {
   }
 
   uint32_t
-  get_rawsize (uint32_t data_id)
+  get_rawsize (uint32_t data_id) noexcept
   {
     HANDLE file = open_mod_data (data_id);
     if (file == INVALID_HANDLE_VALUE)
@@ -125,15 +127,15 @@ namespace {
   }
 
   HANDLE
-  open_mod_data (uint32_t data_id)
+  open_mod_data (uint32_t data_id) noexcept
   {
-    // 16 is sufficiently enough for id string the number of items in databin is
-    // below 10000.
+    // 16 is sufficiently enough for id string since the
+    // number of items in databin is below 10000.
     TCHAR name[16];
     StringCbPrintf (name, sizeof(name), TEXT("%05d.dat"), data_id);
 
-    // Search top `mods' dir first, then search one in the `databin'.
     const TCHAR *mod_dirs[] = {
+      TEXT(""),
       TEXT("mods\\"),
       TEXT("databin\\mods\\"),
     };
@@ -179,28 +181,14 @@ namespace {
   }
 }
 
-// This is for a debugging purpose, e.g. calling this function directly from GDB.
-D(bool
-  reload_plugin (PCSTR plugin_name)
-  {
-    CHAR path[MAX_PATH];
-    if (HMODULE hMod = GetModuleHandleA (plugin_name))
-      {
-	GetModuleFileNameA (hMod, path, sizeof(path));
-	FreeLibrary (hMod);
-      }
-    SetDllDirectory ("plugin");
-    HMODULE l = LoadLibraryA (path);
-    D(cout << (l ? "SUCCESS: " : "FAILED: ") << endl);
-    return l;
-  })
-
 namespace nm_core::loader {
-  bool
+  void
   init ()
   {
-    return init_check_dlls ()
-      && init_load_data ();
+    if (!init_check_dlls ())
+      throw std::runtime_error ("FAILED: nm_core::loader::init_check_dlls()") ;
+    if (!init_load_data ())
+      throw std::runtime_error ("FAILED: nm_core::loader::init_load_data()");
   }
 
   void

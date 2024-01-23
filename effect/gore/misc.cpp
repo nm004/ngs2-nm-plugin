@@ -1,10 +1,10 @@
 /*
  * NGS2 NM Gore Plugin by Nozomi Miyamori is marked with CC0 1.0
- * This code restores NG2 misc gore effect.
+ * This module restores NG2 misc gore effect.
  */
 #include "util.hpp"
 
-namespace {
+namespace nm_effect::gore::misc {
   const uintptr_t make_hit_effect_func = VA (0x1047790);
   const uintptr_t ryu_bow_attack_type_id = VA (0x17f25c8);
   const uintptr_t momiji_bow_attack_type_id = VA (0x17f0428);
@@ -14,7 +14,7 @@ namespace {
 }
 
 namespace nm_effect::gore::misc {
-  bool
+  void
   init ()
   {
     {
@@ -38,7 +38,7 @@ namespace nm_effect::gore::misc {
 
     {
       // Credits: Fiend Busa
-      // Corpses will not fadeout.
+      // Corpses will not fade out.
       const float time = numeric_limits<float>::infinity ();
       WriteMemory (object_fade_out_start_time, &time, sizeof(time));
     }
@@ -55,7 +55,6 @@ namespace nm_effect::gore::misc {
       WriteMemory (momiji_bow_attack_type_id, &attack_type_id, sizeof(attack_type_id));
       WriteMemory (rachel_gun_attack_type_id, &attack_type_id, sizeof(attack_type_id));
     }
-    return true;
   }
 
   void

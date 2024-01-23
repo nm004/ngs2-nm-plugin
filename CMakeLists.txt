@@ -14,3 +14,4 @@ add_subdirectory(effect)
 
 install(TARGETS dbghelp DESTINATION install)
 install(TARGETS effect DESTINATION install/plugin)
+install(FILES docs/README.txt DESTINATION /)

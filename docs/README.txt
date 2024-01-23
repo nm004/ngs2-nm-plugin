@@ -1,4 +1,3 @@
-
 NINJA GAIDEN SIGMA 2 NM Plugins
 ================================
 
@@ -15,8 +14,7 @@ Features
    Chainsaw Fiend)
  - No micro freezing when you delimb enemies
  - Bodies of non-fiends will never disappear
-
-Also, the plugin can load modded data from the `mods` folder.
+ - Load additional dll and mod data from a file
 
 Installation
 -------------
@@ -25,27 +23,26 @@ Just copy and paste the contents of "install" folder (not the folder itself) int
 folder, namely "NINJA GAIDEN Σ2". The game folder looks like below after the installation:
 
 <game folder>
+ -NINJA GAIDEN SIGMA2.exe
+ -dbghelp.dll (This is the mod's main plugin)
  |
- --NINJA GAIDEN SIGMA2.exe
- |
- --databin
- | -databin
- |
- --mods
- | -01234.dat
- | -05678.dat
+ -plugin (other plugins are here)
+ | -nmeffect.dll
  | ...
  |
- --dbghelp.dll (This is the mod's main plugin)
+ -mods
+ | -01234.dat
+ | -05678.dat
+ |   ...
  |
- --plugin (other plugins are here)
- |  -nmeffect.dll
- |  ...
+ -databin
+ | -databin
  |
- --other files or folders
+ -<other files and folders>
 
 "dbghelp.dll" is capable of loading plugins (DLLs) under the "plugin" folder and
-data from "mods" folder.
+data under "mods" folder. You can place "plugin" and "mods" folder under the
+"databin" folder, but "dbghelp.dll" must resides in the <game folder>.
 
 For Steam Deck (Linux) users
 --------------------------------

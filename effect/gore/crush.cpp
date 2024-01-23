@@ -1,26 +1,27 @@
 /*
  * NGS2 NM Gore Plugin by Nozomi Miyamori is marked with CC0 1.0
- * This code restores NG2 crushing gore (e.g. Stuff, Tonfa).
+ * This module restores NG2 crushing gore effects (e.g. Stuff, Tonfa).
  */
 #include "util.hpp"
 #include "gore.hpp"
 #include <algorithm>
 
-using namespace std;
-using namespace nm_effect::gore;
-
-namespace {
+namespace nm_effect::gore::crush {
   const uintptr_t trigger_VanishCrushRootEffect_func = VA (0x1460d20);
   const uintptr_t trigger_BloodCrushRootEffect_func = VA (0x0c0fc40);
   const uintptr_t get_OPTscat_indices_func = VA (0x144cb00);
   const uintptr_t model_tmc_relation_offset_list = VA (0x1e38f30);
 }
 
+using namespace std;
+using namespace nm_effect::gore;
+using namespace nm_effect::gore::crush;
+
 namespace {
   uintptr_t trigger_VanishCrushRootEffect_tramp;
 
   uint8_t *
-  trigger_VanishCrushRootEffect (uintptr_t param1, uintptr_t param2)
+  trigger_VanishCrushRootEffect (uintptr_t param1, uintptr_t param2) noexcept
   {
     // trigger_BloodCrushRootEffect calls trigger_BloodCrushRootEffect_helper
     // internally. trigger_BloodCrushRootEffect_helper setups the most of the
@@ -50,7 +51,7 @@ namespace {
   // The target (enemy's) TMC data is obtained from the first param.
   // We have reimplemented this function because the original function has a bug.
   int
-  get_OPTscat_indices (struct model &mdl, uint32_t *out_indices)
+  get_OPTscat_indices (struct model &mdl, uint32_t *out_indices) noexcept
   {
     uintptr_t mt_rel_ofs = reinterpret_cast<uintptr_t *>
       (model_tmc_relation_offset_list)[mdl.info_idx];
@@ -116,11 +117,13 @@ namespace {
 
 
 namespace nm_effect::gore::crush {
-  bool
+  void
   init ()
   {
-    return init_trigger_BloodCrushRootEffect ()
-      && init_get_OPTscat_indices ();
+    if (!init_trigger_BloodCrushRootEffect ())
+      throw std::runtime_error ("FAILED: nm_effect::gore::crush::init_trigger_BloodCrushRootEffect()") ;
+    if (!init_get_OPTscat_indices ())
+      throw std::runtime_error ("FAILED: nm_effect::gore::crush::init_get_OPTscat_indices()") ;
   }
 
   void

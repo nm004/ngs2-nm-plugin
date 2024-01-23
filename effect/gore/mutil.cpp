@@ -1,14 +1,11 @@
 /*
  * NGS2 NM Gore Plugin by Nozomi Miyamori is marked with CC0 1.0
- * This code restores NG2 mutilation gore (e.g. Sword, Fang, etc.).
+ * This module restores NG2 mutilation gore effects (e.g. Sword, Fang, etc.).
  */
 #include "util.hpp"
 #include "gore.hpp"
 
-using namespace std;
-using namespace nm_effect::gore;
-
-namespace {
+namespace nm_effect::gore::mutil {
   const uintptr_t trigger_VanishMutilationRootEffect_func = VA (0x12293d0);
   const uintptr_t trigger_BloodMutilationRootEffect_func = VA (0x1220060);
   const uintptr_t trigger_VanishViscosityEffect_func = VA (0x1229050);
@@ -18,9 +15,13 @@ namespace {
   const uintptr_t model_node_layer_list_offset_list = VA (0x1e38d10);
 }
 
+using namespace std;
+using namespace nm_effect::gore;
+using namespace nm_effect::gore::mutil;
+
 namespace {
   void
-  update_nodeobj_visibility (struct model_node_layer *nl, uint8_t visibility, bool is_top);
+  update_nodeobj_visibility (struct model_node_layer *nl, uint8_t visibility, bool is_top) noexcept;
 
   // This function is called when delimb happens. This updates the visibility of
   // SUP_* NodeObj that has nodeobj_idx for its parameters. That makes delimbed body
@@ -34,16 +35,17 @@ namespace {
   // Mages reveal their faces when players delimb their heads (but the very short period
   // time: until their heads land :)
   void
-  update_SUP_nodeobj_visibility (struct model &mdl, uint32_t nodeobj_idx, uint8_t visibility)
+  update_SUP_nodeobj_visibility (struct model &mdl, uint32_t nodeobj_idx, uint8_t visibility) noexcept
   {
     // It looks like passed visibility is always zero.
-    const uintptr_t mnl_list_offset = reinterpret_cast<uintptr_t *>(model_node_layer_list_offset_list)[mdl.info_idx];
+    const uintptr_t mnl_list_offset = reinterpret_cast<uintptr_t *>
+      (model_node_layer_list_offset_list)[mdl.info_idx];
     const auto nl = reinterpret_cast<model_node_layer **>(*mdl.p_state + mnl_list_offset)[nodeobj_idx];
     update_nodeobj_visibility (nl->first_child, visibility, true);
   }
 
   void
-  update_nodeobj_visibility (struct model_node_layer *nl, uint8_t visibility, bool is_top)
+  update_nodeobj_visibility (struct model_node_layer *nl, uint8_t visibility, bool is_top) noexcept
   {
     enum {
       MOT = 1,
@@ -121,12 +123,15 @@ namespace {
 }
 
 namespace nm_effect::gore::mutil {
-  bool
+  void
   init ()
   {
-    return init_trigger_BloodMutilationRootEffect ()
-      && init_trigger_MutilationViscosityBloodEffect ()
-      && init_update_SUP_nodeobj_visibility ();
+    if (!init_trigger_BloodMutilationRootEffect ())
+      throw std::runtime_error ("FAILED: nm_effect::gore::mutil::init_trigger_BloodMutilationRootEffect()");
+    if (!init_trigger_MutilationViscosityBloodEffect ())
+      throw std::runtime_error ("FAILED: nm_effect::gore::mutil::init_trigger_MutilationViscosityBloodEffect()");
+    if (!init_update_SUP_nodeobj_visibility ())
+      throw std::runtime_error ("FAILED: nm_effect::gore::mutil::init_update_SUP_nodeobj_visibility()");
   }
 
   void

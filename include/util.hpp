@@ -2,6 +2,7 @@
 #define NGS2_NM_UTIL_HPP
 #define WIN32_LEAN_AND_MEAN
 
+#include "debug.hpp"
 #include <polyhook2/IHook.hpp>
 #include <polyhook2/Detour/x64Detour.hpp>
 #include <windef.h>
@@ -12,12 +13,6 @@
 #include <cstdint>
 #include <vector>
 #include <memory>
-
-#if defined(NDEBUG)
-# define D(x)
-#else
-# define D(x) x
-#endif
 
 namespace {
   using namespace std;

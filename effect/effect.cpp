@@ -1,47 +1,43 @@
 /*
  * NGS2 NM Gore Plugin by Nozomi Miyamori is marked with CC0 1.0
- * This plugin restores NG2 vanilla gore to NGS2.
  */
 
+#include "debug.hpp"
+#include "gore/gore.hpp"
 #include <windef.h>
+#include <iostream>
+#include <stdexcept>
 
-namespace nm_effect {
-  namespace gore {
-    namespace mutil {
-      bool init ();
-      void deinit ();
-    }
-
-    namespace crush {
-      bool init ();
-      void deinit ();
-    }
-
-    namespace misc {
-      bool init ();
-      void deinit ();
-    }
-  }
-}
+using namespace std;
+using namespace nm_effect;
 
 extern "C" WINAPI BOOL
 DllMain (HINSTANCE hinstDLL,
 	 DWORD fdwReason,
 	 LPVOID lpvReserved)
 {
-  using namespace nm_effect;
   switch (fdwReason)
     {
     case DLL_PROCESS_ATTACH:
-      return gore::mutil::init ()
-	&& gore::crush::init ()
-	&& gore::misc::init ();
+      try
+	{
+	  gore::mutil::init ();
+	  gore::crush::init ();
+	  gore::misc::init ();
+	}
+      catch (const exception &e)
+	{
+	  D(cout << e.what () << endl);
+	  return FALSE;
+	}
+      break;
     case DLL_PROCESS_DETACH:
       gore::mutil::deinit ();
       gore::crush::deinit ();
       gore::misc::deinit ();
-      return TRUE;
+      break;
     default:
-      return TRUE;
+      break;
     }
+  return TRUE;
 }

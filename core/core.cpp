@@ -1,29 +1,41 @@
+#include "debug.hpp"
 #include <windef.h>
-
-using namespace std;
+#include <iostream>
+#include <stdexcept>
 
 namespace nm_core {
   namespace loader {
-    bool init ();
+    void init ();
     void deinit ();
   }
 }
+
+using namespace std;
+using namespace nm_core;
 
 extern "C" WINAPI BOOL
 DllMain (HINSTANCE hinstDLL,
 	 DWORD fdwReason,
 	 LPVOID lpvReserved)
 {
-  using namespace nm_core;
   switch (fdwReason)
     {
     case DLL_PROCESS_ATTACH:
-      return loader::init ();
+      try
+	{
+	  loader::init();
+	}
+      catch (const exception &e)
+	{
+	  D(cout << e.what () << endl);
+	  return FALSE;
+	}
+      break;
     case DLL_PROCESS_DETACH:
       loader::deinit ();
-      return TRUE;
+      break;
     default:
-      return TRUE;
+      break;
     }
     return TRUE;
 }
