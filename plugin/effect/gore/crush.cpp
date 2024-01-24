@@ -6,18 +6,20 @@
 #include "gore.hpp"
 #include <algorithm>
 
-namespace nm_effect::gore::crush {
+using namespace std;
+using namespace ngs2::nm::util;
+using namespace ngs2::nm::plugin::effect::gore;
+
+namespace {
   const uintptr_t trigger_VanishCrushRootEffect_func = VA (0x1460d20);
+  // 48 89 5c 24 08 57 48 83 ec 20 49 8b 00 48 8b fa
   const uintptr_t trigger_BloodCrushRootEffect_func = VA (0x0c0fc40);
   const uintptr_t get_OPTscat_indices_func = VA (0x144cb00);
   const uintptr_t model_tmc_relation_offset_list = VA (0x1e38f30);
 }
 
-using namespace std;
-using namespace nm_effect::gore;
-using namespace nm_effect::gore::crush;
-
 namespace {
+  HookMap *hook_map;
   uintptr_t trigger_VanishCrushRootEffect_tramp;
 
   uint8_t *
@@ -101,7 +103,7 @@ namespace {
   bool
   init_trigger_BloodCrushRootEffect ()
   {
-    return trigger_VanishCrushRootEffect_tramp = hook (trigger_VanishCrushRootEffect_func,
+    return trigger_VanishCrushRootEffect_tramp = hook_map->hook (trigger_VanishCrushRootEffect_func,
 		 reinterpret_cast<uintptr_t>(trigger_VanishCrushRootEffect));
   }
 
@@ -111,15 +113,15 @@ namespace {
     // To make inline-hook working.
     const uint8_t nop6[] = { 0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00 };
     WriteMemory (get_OPTscat_indices_func + 0xe, nop6, sizeof(nop6));
-    return hook (get_OPTscat_indices_func, reinterpret_cast<uintptr_t>(get_OPTscat_indices));
+    return hook_map->hook (get_OPTscat_indices_func, reinterpret_cast<uintptr_t>(get_OPTscat_indices));
   }
 }
 
-
-namespace nm_effect::gore::crush {
+namespace ngs2::nm::plugin::effect::gore::crush {
   void
   init ()
   {
+    hook_map = new HookMap;
     if (!init_trigger_BloodCrushRootEffect ())
       throw std::runtime_error ("FAILED: nm_effect::gore::crush::init_trigger_BloodCrushRootEffect()") ;
     if (!init_get_OPTscat_indices ())
@@ -129,6 +131,6 @@ namespace nm_effect::gore::crush {
   void
   deinit ()
   {
-    detours.clear ();
+    delete hook_map;
   }
 }

@@ -4,7 +4,9 @@
  */
 #include "util.hpp"
 
-namespace nm_effect::gore::misc {
+using namespace ngs2::nm::util;
+
+namespace {
   const uintptr_t make_hit_effect_func = VA (0x1047790);
   const uintptr_t ryu_bow_attack_type_id = VA (0x17f25c8);
   const uintptr_t momiji_bow_attack_type_id = VA (0x17f0428);
@@ -13,7 +15,7 @@ namespace nm_effect::gore::misc {
   const uintptr_t object_fade_out_start_time = VA (0x1907cf4);
 }
 
-namespace nm_effect::gore::misc {
+namespace ngs2::nm::plugin::effect::gore::misc {
   void
   init ()
   {
@@ -60,7 +62,6 @@ namespace nm_effect::gore::misc {
   void
   deinit ()
   {
-    detours.clear ();
   }
 }
 

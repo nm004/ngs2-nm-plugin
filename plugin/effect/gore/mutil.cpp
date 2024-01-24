@@ -5,8 +5,13 @@
 #include "util.hpp"
 #include "gore.hpp"
 
-namespace nm_effect::gore::mutil {
+using namespace std;
+using namespace ngs2::nm::util;
+using namespace ngs2::nm::plugin::effect::gore;
+
+namespace {
   const uintptr_t trigger_VanishMutilationRootEffect_func = VA (0x12293d0);
+  // 48 89 5c 24 18 48 89 74 24 20 40 56 48 83 ec 60
   const uintptr_t trigger_BloodMutilationRootEffect_func = VA (0x1220060);
   const uintptr_t trigger_VanishViscosityEffect_func = VA (0x1229050);
   const uintptr_t trigger_MutilationViscosityBloodEffect_func = VA (0x121fe20);
@@ -15,11 +20,9 @@ namespace nm_effect::gore::mutil {
   const uintptr_t model_node_layer_list_offset_list = VA (0x1e38d10);
 }
 
-using namespace std;
-using namespace nm_effect::gore;
-using namespace nm_effect::gore::mutil;
-
 namespace {
+  HookMap *hook_map;
+
   void
   update_nodeobj_visibility (struct model_node_layer *nl, uint8_t visibility, bool is_top) noexcept;
 
@@ -95,7 +98,7 @@ namespace {
     // We directly detour trigger_VanishMutilationRootEffect_func function to
     // trigger_BloodMutilationRootEffect because their parameters are perfectly the same,
     // even the flow of the function looks totally same.
-    return hook (trigger_VanishMutilationRootEffect_func,
+    return hook_map->hook (trigger_VanishMutilationRootEffect_func,
 		 reinterpret_cast<uint64_t>(trigger_BloodMutilationRootEffect_func));
   }
 
@@ -104,7 +107,7 @@ namespace {
   {
     // We directly detour trigger_VanishViscosityEffect function to
     // trigger_MutilationViscosityBloodEffect because their parameters are perfectly the same.
-    return hook (trigger_VanishViscosityEffect_func,
+    return hook_map->hook (trigger_VanishViscosityEffect_func,
 		 reinterpret_cast<uint64_t>(trigger_MutilationViscosityBloodEffect_func));
   }
 
@@ -117,15 +120,16 @@ namespace {
     WriteMemory (update_SUP_nodeobj_visibility_func + 0x9, nop6, sizeof(nop6));
     WriteMemory (update_SUP_nodeobj_visibility_func + 0x9, nop7, sizeof(nop7));
 
-    return hook (update_SUP_nodeobj_visibility_func,
+    return hook_map->hook (update_SUP_nodeobj_visibility_func,
 		 reinterpret_cast<uintptr_t>(update_SUP_nodeobj_visibility));
   }
 }
 
-namespace nm_effect::gore::mutil {
+namespace ngs2::nm::plugin::effect::gore::mutil {
   void
   init ()
   {
+    hook_map = new HookMap;
     if (!init_trigger_BloodMutilationRootEffect ())
       throw std::runtime_error ("FAILED: nm_effect::gore::mutil::init_trigger_BloodMutilationRootEffect()");
     if (!init_trigger_MutilationViscosityBloodEffect ())
@@ -137,6 +141,6 @@ namespace nm_effect::gore::mutil {
   void
   deinit ()
   {
-    detours.clear ();
+    delete hook_map;
   }
 }

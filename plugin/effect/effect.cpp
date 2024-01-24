@@ -2,14 +2,14 @@
  * NGS2 NM Gore Plugin by Nozomi Miyamori is marked with CC0 1.0
  */
 
-#include "debug.hpp"
+#include "util.hpp"
 #include "gore/gore.hpp"
 #include <windef.h>
 #include <iostream>
 #include <stdexcept>
 
 using namespace std;
-using namespace nm_effect;
+using namespace ngs2::nm::plugin::effect;
 
 extern "C" WINAPI BOOL
 DllMain (HINSTANCE hinstDLL,

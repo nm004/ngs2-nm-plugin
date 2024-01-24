@@ -4,7 +4,7 @@
 
 #include <cstdint>
 
-namespace nm_effect::gore {
+namespace ngs2::nm::plugin::effect::gore {
   struct model {
     uintptr_t p_state[3];
     uint8_t mdl_id;
