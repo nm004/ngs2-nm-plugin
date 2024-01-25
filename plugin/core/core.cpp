@@ -21,8 +21,7 @@ namespace {
 
   BOOL
   SetCurrentDirectoryW_ (LPCWSTR lpPathName);
-  uintptr_t SetCurrentDirectoryW_tramp;
-  
+
   // This is the early stage init to keep SteamDRM from decoding our codes.
   // We instead inject our codes after the decoding phase by hooking
   // SetCurrentDirectoryW.
@@ -33,9 +32,7 @@ namespace {
     HMODULE hMod = GetModuleHandle ("Kernel32.dll");
     uintptr_t proc = reinterpret_cast<uintptr_t>
       (GetProcAddress (hMod, "SetCurrentDirectoryW"));
-
-    SetCurrentDirectoryW_tramp =
-      hook_map->hook (proc, reinterpret_cast<uintptr_t>(SetCurrentDirectoryW_));
+    hook_map->hook (proc, reinterpret_cast<uintptr_t>(SetCurrentDirectoryW_));
   }
 
   // This is the real init.
@@ -50,13 +47,10 @@ namespace {
       {
 	D(cout << e.what () << endl);
       }
-
-    BOOL r = reinterpret_cast<decltype(SetCurrentDirectoryW) *>
-      (SetCurrentDirectoryW_tramp) (lpPathName);
-
     // We do not need the hook anymore.
     delete hook_map;
-    return r;
+
+    return SetCurrentDirectoryW(lpPathName);
   }
 }
 

@@ -11,14 +11,34 @@ using namespace ngs2::nm::util;
 using namespace ngs2::nm::plugin::effect::gore;
 
 namespace {
-  const uintptr_t trigger_VanishCrushRootEffect_func = VA (0x1460d20);
-  // 48 89 5c 24 08 57 48 83 ec 20 49 8b 00 48 8b fa
-  const uintptr_t trigger_BloodCrushRootEffect_func = VA (0x0c0fc40);
-  const uintptr_t get_OPTscat_indices_func = VA (0x144cb00);
-  const uintptr_t model_tmc_relation_offset_list = VA (0x1e38f30);
+  const uint8_t trigger_VanishCrushRootEffect_func_pattern[] = {
+    0x40, 0x57, 0x48, 0x81, 0xec, 0x90, 0x00, 0x00,
+    0x00, 0x48, 0x8b, 0xf9, 0x66, 0xc7, 0x01, 0x01,
+    0x01,
+  };
+  const uint8_t trigger_BloodCrushRootEffect_func_pattern[] = {
+    0x48, 0x89, 0x5c, 0x24, 0x08, 0x57, 0x48, 0x83,
+    0xec, 0x20, 0x49, 0x8b, 0x00, 0x48, 0x8b, 0xfa,
+  };
+  const uint8_t get_OPTscat_indices_func_pattern[] = {
+    0x40, 0x57, 0x0f, 0xb6, 0x41, 0x1a, 0x45, 0x33,
+    0xdb, 0x48, 0x8b, 0xfa, 0x3c, 0xff, 0x75, 0x04,
+  };
+
+  const uintptr_t model_tmc_relation_offset_list = VA (0x1edf30 + data_section_rva);
 }
 
 namespace {
+#if NINJA_GAIDEN_SIGMA_2_TARGET_STEAM_JP
+  const uintptr_t trigger_VanishCrushRootEffect_func = VA_PRINT_DECL (trigger_VanishCrushRootEffect_func);
+  const uintptr_t trigger_BloodCrushRootEffect_func = VA_PRINT_DECL (trigger_BloodCrushRootEffect_func);
+  const uintptr_t get_OPTscat_indices_func = VA_PRINT_DECL (get_OPTscat_indices_func);
+#elif  NINJA_GAIDEN_SIGMA_2_TARGET_STEAM_AE
+  const uintptr_t trigger_VanishCrushRootEffect_func = VA (0x1460d20);
+  const uintptr_t trigger_BloodCrushRootEffect_func = VA (0x0c0fc40);
+  const uintptr_t get_OPTscat_indices_func = VA (0x144cb00);
+#endif
+  
   HookMap *hook_map;
   uintptr_t trigger_VanishCrushRootEffect_tramp;
 

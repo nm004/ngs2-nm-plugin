@@ -4,15 +4,36 @@
  */
 #include "util.hpp"
 
+using namespace std;
 using namespace ngs2::nm::util;
 
 namespace {
-  const uintptr_t make_hit_effect_func = VA (0x1047790);
-  const uintptr_t ryu_bow_attack_type_id = VA (0x17f25c8);
-  const uintptr_t momiji_bow_attack_type_id = VA (0x17f0428);
-  const uintptr_t rachel_gun_attack_type_id = VA (0x17f3ca8);
+  const uint8_t trigger_delimb_effect_func_pattern[] = {
+    0x48, 0x89, 0x5c, 0x24, 0x18, 0x48, 0x89, 0x6c,
+    0x24, 0x20, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55,
+    0x41, 0x56, 0x48, 0x81, 0xec, 0x20, 0x01, 0x00,
+    0x00,
+  };
+  const uint8_t make_hit_effect_func_pattern[] = {
+    0x48, 0x89, 0x5c, 0x24, 0x08, 0x48, 0x89, 0x74,
+    0x24, 0x10, 0x48, 0x89, 0x7c, 0x24, 0x20, 0x55,
+    0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57,
+    0x48, 0x8d, 0xac, 0x24, 0xd0, 0xfe, 0xff, 0xff,
+  };
+  const uintptr_t ryu_bow_attack_type_id = VA (0x545c8 + rdata_section_rva);
+  const uintptr_t momiji_bow_attack_type_id = VA (0x52428 + rdata_section_rva);
+  const uintptr_t rachel_gun_attack_type_id = VA (0x55ca8 + rdata_section_rva);
+  const uintptr_t object_fade_out_start_time = VA (0x169cf4 + rdata_section_rva);
+}
+
+namespace {
+#if NINJA_GAIDEN_SIGMA_2_TARGET_STEAM_JP
+  const uintptr_t trigger_delimb_effect_func = VA_PRINT_DECL (trigger_delimb_effect_func);
+  const uintptr_t make_hit_effect_func = VA_PRINT_DECL (make_hit_effect_func);
+#elif  NINJA_GAIDEN_SIGMA_2_TARGET_STEAM_AE
   const uintptr_t trigger_delimb_effect_func = VA (0x1457df0);
-  const uintptr_t object_fade_out_start_time = VA (0x1907cf4);
+  const uintptr_t make_hit_effect_func = VA (0x1047790);
+#endif
 }
 
 namespace ngs2::nm::plugin::effect::gore::misc {

@@ -10,17 +10,53 @@ using namespace ngs2::nm::util;
 using namespace ngs2::nm::plugin::effect::gore;
 
 namespace {
+  const uint8_t trigger_VanishMutilationRootEffect_func_pattern[] = {
+    0x40, 0x53, 0x41, 0x55, 0x41, 0x56, 0x48, 0x83,
+    0xec, 0x60, 0x44, 0x8b, 0xea, 0x49, 0x8b, 0xc9,
+  };
+  const uint8_t trigger_BloodMutilationRootEffect_func_pattern[] = {
+    0x48, 0x89, 0x5c, 0x24, 0x18, 0x48, 0x89, 0x74,
+    0x24, 0x20, 0x41, 0x56, 0x48, 0x83, 0xec, 0x60,
+  };
+  const uint8_t trigger_VanishViscosityEffect_func_pattern[] = {
+    0x44, 0x89, 0x44, 0x24, 0x18, 0x53, 0x41, 0x54,
+    0x41, 0x56, 0x41, 0x57, 0x48, 0x81, 0xec, 0xb8,
+    0x00, 0x00, 0x00,
+  };
+  const uint8_t trigger_MutilationViscosityBloodEffect_func_pattern[] = {
+    0x40, 0x53, 0x55, 0x57, 0x48, 0x81, 0xec, 0xa0,
+    0x00, 0x00, 0x00, 0x8b, 0xac, 0x24, 0xe0, 0x00,
+    0x00, 0x00,
+  };
+  const uint8_t adjust_BloodMutilationRootEffect_params_func_pattern[] = {
+    0x48, 0x83, 0xec, 0x48, 0x4c, 0x8b, 0xd1, 0x41,
+    0x8b, 0xc8, 0x83, 0xe9, 0x04, 0x74, 0x5c, 0x83,
+    0xe9, 0x01,
+  };
+  const uint8_t update_SUP_nodeobj_visibility_func_pattern[] = {
+    0x40, 0x55, 0x41, 0x0f, 0xb6, 0xe8, 0x83, 0xfa, 
+    0x3f, 0x0f, 0x87, 0x08, 0x01, 0x00, 0x00,
+  };
+  const uintptr_t model_node_layer_list_offset_list = VA (0x1edd10 + data_section_rva);
+}
+
+namespace {
+#if NINJA_GAIDEN_SIGMA_2_TARGET_STEAM_JP
+  const uintptr_t trigger_VanishMutilationRootEffect_func = VA_PRINT_DECL (trigger_VanishMutilationRootEffect_func);
+  const uintptr_t trigger_BloodMutilationRootEffect_func = VA_PRINT_DECL (trigger_BloodMutilationRootEffect_func);
+  const uintptr_t trigger_VanishViscosityEffect_func = VA_PRINT_DECL (trigger_VanishViscosityEffect_func);
+  const uintptr_t trigger_MutilationViscosityBloodEffect_func = VA_PRINT_DECL (trigger_MutilationViscosityBloodEffect_func);
+  const uintptr_t adjust_BloodMutilationRootEffect_params_func = VA_PRINT_DECL (adjust_BloodMutilationRootEffect_params_func);
+  const uintptr_t update_SUP_nodeobj_visibility_func = VA_PRINT_DECL (update_SUP_nodeobj_visibility_func);
+#elif  NINJA_GAIDEN_SIGMA_2_TARGET_STEAM_AE
   const uintptr_t trigger_VanishMutilationRootEffect_func = VA (0x12293d0);
-  // 48 89 5c 24 18 48 89 74 24 20 40 56 48 83 ec 60
   const uintptr_t trigger_BloodMutilationRootEffect_func = VA (0x1220060);
   const uintptr_t trigger_VanishViscosityEffect_func = VA (0x1229050);
   const uintptr_t trigger_MutilationViscosityBloodEffect_func = VA (0x121fe20);
   const uintptr_t adjust_BloodMutilationRootEffect_params_func = VA (0x1206e30);
   const uintptr_t update_SUP_nodeobj_visibility_func = VA (0x1455880);
-  const uintptr_t model_node_layer_list_offset_list = VA (0x1e38d10);
-}
+#endif
 
-namespace {
   HookMap *hook_map;
 
   void

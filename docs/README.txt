@@ -37,6 +37,8 @@ folder, namely "NINJA GAIDEN Σ2". The game folder looks like below after the in
  |
  -databin
  | -databin
+ | -plugin
+ | -mods
  |
  -<other files and folders>
 

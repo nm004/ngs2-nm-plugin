@@ -19,29 +19,23 @@ namespace {
     0x48, 0x8b, 0xc4, 0x48, 0x89, 0x48, 0x08, 0x56,
     0x57, 0x41, 0x56, 0x48, 0x81, 0xec, 0x80, 0x00,
     0x00, 0x00, 0x48, 0xc7, 0x40, 0x98, 0xfe, 0xff,
-    0xff, 0xff, 0x48, 0x89, 0x58, 0x18
+    0xff, 0xff, 0x48, 0x89, 0x58, 0x18,
   };
   const uint8_t get_rawsize_func_pattern[] = {
     0x48, 0x83, 0xec, 0x28, 0xb8, 0xff, 0xff, 0x00,
     0x00, 0x66, 0x3b, 0xc8, 0x75, 0x07,
   };
-  // const uintptr_t load_data_vfp;
-  // const uintptr_t databin_manager;
+  const uintptr_t load_data_vfp = VA (rdata_section_rva + 0x1516F0);
+  const uintptr_t databin_manager = VA (data_section_rva + 0x218f38);
 }
 
 namespace {
-#if NINJA_GAIDEN_SIGMA_2_STEAM_JP
+#if NINJA_GAIDEN_SIGMA_2_TARGET_STEAM_JP
   const uintptr_t check_dlls_func = VA (0xb5c4b0);
   const uintptr_t get_rawsize_func = VA (0x13ab3b0);
-
-  const uintptr_t load_data_vfp = VA (0x18ee6f0);
-  const uintptr_t databin_manager = VA (0x1e62f38);
-#else
+#elif  NINJA_GAIDEN_SIGMA_2_TARGET_STEAM_AE
   const uintptr_t check_dlls_func = VA (0xb5c460);
   const uintptr_t get_rawsize_func = VA (0x13ab5e0);
-
-  const uintptr_t load_data_vfp = VA (0x18ef6f0);
-  const uintptr_t databin_manager = VA (0x1e63f38);
 #endif
 }
 
@@ -56,8 +50,8 @@ namespace {
     // Dll search paths starting from the current directory
     const TCHAR *search_paths[] = {
       TEXT(""),
-      TEXT("plugin"),
-      TEXT("databin\\plugin"),
+      TEXT("plugin\\"),
+      TEXT("databin\\plugin\\"),
     };
     for (auto &i : search_paths)
       {
@@ -65,7 +59,7 @@ namespace {
 	TCHAR path[MAX_PATH];
 	StringCbCopy (path, sizeof(path), i);
 	SetDllDirectory (path);
-	StringCbCat (path, sizeof(path), TEXT("\\*.dll"));
+	StringCbCat (path, sizeof(path), TEXT("*.dll"));
 
 	WIN32_FIND_DATA findFileData;
 	HANDLE hFindFile = FindFirstFile (path, &findFileData);
@@ -86,8 +80,9 @@ namespace {
 
   struct databin_info {
     uint32_t item_count;
-    uint32_t data0x4;
-    uint32_t data0x8;
+    // We do not use this because id == idx on NGS2's databin
+    uint32_t offset_to_id_and_idx_pairs;
+    uint32_t id_and_idx_pairs_count;
     uint32_t data0xc;
   };
 
@@ -114,26 +109,22 @@ namespace {
   HANDLE
   open_mod_data (uint32_t data_id) noexcept;
 
+  HANDLE
+  open_mod_data (struct databin_info &dbi, struct data_info &di) noexcept;
+
   bool
   load_data (ProductionPackage *thisptr, void *param2, struct data_info &di, void *out_buf) noexcept
   {
-    auto &dbi = thisptr->databin_info;
-    uintptr_t addr = reinterpret_cast<uintptr_t>(&dbi) + sizeof(dbi);
-    span di_ofs {
-      reinterpret_cast<uint32_t *>(addr), dbi.item_count
-    };
-
-    uintptr_t o = reinterpret_cast<uintptr_t>(&di) - reinterpret_cast<uintptr_t>(&dbi);
-
-    auto i = lower_bound (di_ofs.begin (), di_ofs.end (), o);
-    auto data_id = distance (di_ofs.begin (), i) / sizeof(*di_ofs.data ());
-    HANDLE hFile = open_mod_data (data_id);
+    HANDLE hFile = open_mod_data (thisptr->databin_info, di);
     if (hFile == INVALID_HANDLE_VALUE)
       return reinterpret_cast<decltype(load_data) *>
 	(load_data_tramp) (thisptr, param2, di, out_buf);
 
+    LARGE_INTEGER fsize;
+    GetFileSizeEx (hFile, &fsize);
+
     DWORD nBytesRead;
-    BOOL r = ReadFile (hFile, out_buf, di.rawsize, &nBytesRead, nullptr);
+    BOOL r = ReadFile (hFile, out_buf, fsize.u.LowPart, &nBytesRead, nullptr);
     CloseHandle (hFile);
     return r;
   }
@@ -141,14 +132,14 @@ namespace {
   uint32_t
   get_rawsize (uint32_t data_id) noexcept
   {
-    HANDLE file = open_mod_data (data_id);
-    if (file == INVALID_HANDLE_VALUE)
+    HANDLE hFile = open_mod_data (data_id);
+    if (hFile == INVALID_HANDLE_VALUE)
       return reinterpret_cast<decltype(get_rawsize) *>
 	(get_rawsize_tramp) (data_id);
 
     LARGE_INTEGER size;
-    GetFileSizeEx (file, &size);
-    CloseHandle (file);
+    GetFileSizeEx (hFile, &size);
+    CloseHandle (hFile);
     return size.u.LowPart;
   }
 
@@ -179,6 +170,21 @@ namespace {
 	  break;
       }
     return hFile;
+  }
+
+  HANDLE
+  open_mod_data (struct databin_info &dbi, struct data_info &di) noexcept
+  {
+    span<uint32_t> di_ofs {
+      reinterpret_cast<uint32_t *>(reinterpret_cast<uintptr_t>(&dbi) + sizeof(dbi)),
+      dbi.item_count
+    };
+
+    uintptr_t o = reinterpret_cast<uintptr_t>(&di) - reinterpret_cast<uintptr_t>(&dbi);
+
+    // Search the entry having the offset to the passed data_info
+    auto i = lower_bound (di_ofs.begin (), di_ofs.end (), o);
+    return open_mod_data (distance (di_ofs.begin (), i));
   }
 
   // The check_dlls returns true if the number of loaded modules (exe + dlls) in the executable's directory
