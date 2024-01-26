@@ -21,9 +21,10 @@ DllMain (HINSTANCE hinstDLL,
     case DLL_PROCESS_ATTACH:
       try
 	{
-	  gore::mutil::init ();
+	  gore::gore::init ();
 	  gore::crush::init ();
-	  gore::misc::init ();
+	  gore::mutil::init ();
+	  D(cout << "INIT SUCCESS: nm::plugin::effect" << endl);
 	}
       catch (const exception &e)
 	{
@@ -32,9 +33,9 @@ DllMain (HINSTANCE hinstDLL,
 	}
       break;
     case DLL_PROCESS_DETACH:
+      gore::gore::deinit ();
       gore::mutil::deinit ();
       gore::crush::deinit ();
-      gore::misc::deinit ();
       break;
     default:
       break;

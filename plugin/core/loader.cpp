@@ -15,32 +15,22 @@ using namespace std;
 using namespace ngs2::nm::util;
 
 namespace {
-  const uint8_t check_dlls_func_pattern[] = {
+  constinit const uint8_t check_dlls_func_pattern[] = {
     0x48, 0x8b, 0xc4, 0x48, 0x89, 0x48, 0x08, 0x56,
     0x57, 0x41, 0x56, 0x48, 0x81, 0xec, 0x80, 0x00,
     0x00, 0x00, 0x48, 0xc7, 0x40, 0x98, 0xfe, 0xff,
     0xff, 0xff, 0x48, 0x89, 0x58, 0x18,
   };
-  const uint8_t get_rawsize_func_pattern[] = {
+  constinit const uint8_t get_rawsize_func_pattern[] = {
     0x48, 0x83, 0xec, 0x28, 0xb8, 0xff, 0xff, 0x00,
     0x00, 0x66, 0x3b, 0xc8, 0x75, 0x07,
   };
-  const uintptr_t load_data_vfp = VA (rdata_section_rva + 0x1516F0);
-  const uintptr_t databin_manager = VA (data_section_rva + 0x218f38);
-}
 
-namespace {
-#if NINJA_GAIDEN_SIGMA_2_TARGET_STEAM_JP
-  const uintptr_t check_dlls_func = VA (0xb5c4b0);
-  const uintptr_t get_rawsize_func = VA (0x13ab3b0);
-#elif  NINJA_GAIDEN_SIGMA_2_TARGET_STEAM_AE
-  const uintptr_t check_dlls_func = VA (0xb5c460);
-  const uintptr_t get_rawsize_func = VA (0x13ab5e0);
-#endif
-}
+  uintptr_t load_data_vfp;
 
-namespace {
-  HookMap *hook_map;
+  uintptr_t check_dlls_func;
+  uintptr_t get_rawsize_func;
+
   uintptr_t load_data_tramp;
   uintptr_t get_rawsize_tramp;
 
@@ -70,8 +60,7 @@ namespace {
 	    {
 	      continue;
 	    }
-	  D(HMODULE l = )LoadLibrary (findFileData.cFileName);
-	  D(cout << (l ? "LOAD SUCCESS: " : "LOAD FAILURE: ") << findFileData.cFileName << endl);
+	  LoadLibrary (findFileData.cFileName);
 	} while (FindNextFile(hFindFile, &findFileData));
 	FindClose (hFindFile);
       }
@@ -187,6 +176,8 @@ namespace {
     return open_mod_data (distance (di_ofs.begin (), i));
   }
 
+  HookMap *hook_map;
+
   // The check_dlls returns true if the number of loaded modules (exe + dlls) in the executable's directory
   // is equal to 2. Otherwise, this returns false. Our function, of course, always return true.
   bool
@@ -203,13 +194,13 @@ namespace {
     const uint8_t nop9[] = {
       0x66, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00,
     };
-    WriteMemory (get_rawsize_func + 0xc, nop9, sizeof(nop9));
+    WriteMemory (get_rawsize_func + 0xc, nop9);
     get_rawsize_tramp = hook_map->hook (get_rawsize_func, reinterpret_cast<uintptr_t>(get_rawsize));
 
     load_data_tramp = *reinterpret_cast<uintptr_t *>(load_data_vfp);
     uintptr_t load_data_addr = reinterpret_cast<uintptr_t>(load_data);
     return get_rawsize_tramp
-      && WriteMemory (load_data_vfp, &load_data_addr, sizeof(load_data_addr));
+      && WriteMemory (load_data_vfp, load_data_addr);
 			  
   }
 }
@@ -218,11 +209,25 @@ namespace ngs2::nm::plugin::core::loader {
   void
   init ()
   {
+    load_data_vfp = start_of_data + 0x1516F0;
+
+    switch (binary_kind)
+      {
+      case NGS2_BINARY_KIND::STEAM_JP:
+	check_dlls_func = base_of_image + 0xb5c4b0;
+	get_rawsize_func = base_of_image + 0x13ab3b0;
+	break;
+      case NGS2_BINARY_KIND::STEAM_AE:
+	check_dlls_func = base_of_image + 0xb5c460;
+	get_rawsize_func = base_of_image + 0x13ab5e0;
+	break;
+      }
+
     hook_map = new HookMap;
     if (!init_check_dlls ())
-      throw runtime_error ("FAILED: nm_core::loader::init_check_dlls()") ;
+      throw runtime_error ("INIT FAILED: nm::plugin::core::loader::init_check_dlls");
     if (!init_load_data ())
-      throw runtime_error ("FAILED: nm_core::loader::init_load_data()");
+      throw runtime_error ("INIT FAILED: nm::plugin::core::loader::init_load_data");
   }
 
   void

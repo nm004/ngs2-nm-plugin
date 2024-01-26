@@ -42,6 +42,7 @@ namespace {
     try
       {
 	loader::init();
+	D(cout << "INIT SUCCESS: nm::plugin::core" << endl);
       }
     catch (const exception &e)
       {

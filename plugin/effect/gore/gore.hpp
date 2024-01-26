@@ -108,7 +108,7 @@ namespace ngs2::nm::plugin::effect::gore {
     // imcomplete
   };
 
-  namespace mutil {
+  namespace gore {
     void init ();
     void deinit ();
   }
@@ -118,7 +118,7 @@ namespace ngs2::nm::plugin::effect::gore {
     void deinit ();
   }
 
-  namespace misc {
+  namespace mutil {
     void init ();
     void deinit ();
   }
