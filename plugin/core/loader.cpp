@@ -1,41 +1,68 @@
 /*
- * NGS2 NM Plugin Loader by Nozomi Miyamori is marked with CC0 1.0
- * This module loads plugin and data for NINJA GAIDEN SIGMA2 Master Collection
+ * NGS2 NM Plugin by Nozomi Miyamori is marked with CC0 1.0.
+ * This file is a part of NGS2 NM Plugin.
+ *
+ * This module loads plugin and data for the game.
  */
+
 #include "util.hpp"
+#include "hook.hpp"
 #include <winbase.h>
 #include <strsafe.h>
 #include <fileapi.h>
+#include <cstdint>
 #include <algorithm>
 #include <span>
-#include <iostream>
-#include <stdexcept>
 
 using namespace std;
 using namespace ngs2::nm::util;
 
 namespace {
-  constinit const uint8_t check_dlls_func_pattern[] = {
-    0x48, 0x8b, 0xc4, 0x48, 0x89, 0x48, 0x08, 0x56,
-    0x57, 0x41, 0x56, 0x48, 0x81, 0xec, 0x80, 0x00,
-    0x00, 0x00, 0x48, 0xc7, 0x40, 0x98, 0xfe, 0xff,
-    0xff, 0xff, 0x48, 0x89, 0x58, 0x18,
-  };
-  constinit const uint8_t get_rawsize_func_pattern[] = {
-    0x48, 0x83, 0xec, 0x28, 0xb8, 0xff, 0xff, 0x00,
-    0x00, 0x66, 0x3b, 0xc8, 0x75, 0x07,
+  struct databin_info {
+    uint32_t item_count;
+    // We do not use this because id == idx on NGS2's databin
+    uint32_t offset_to_id_and_idx_pairs;
+    uint32_t id_and_idx_pairs_count;
+    uint32_t data0xc;
   };
 
-  uintptr_t load_data_vfp;
+  struct ProductionPackage {
+    uintptr_t vfp1;
+    uint8_t path[0x10];
+    uint64_t data0x18;
+    uint64_t data0x20;
+    struct databin_info &databin_info;
+    // imcomplete
+  };
 
-  uintptr_t check_dlls_func;
-  uintptr_t get_rawsize_func;
-
-  uintptr_t load_data_tramp;
-  uintptr_t get_rawsize_tramp;
+  struct data_info {
+    uint32_t offset_to_data;
+    uint32_t data0x4;
+    uint32_t rawsize;
+    uint32_t compressed_size;
+    uint32_t data0x10;
+    uint16_t data0x14;
+    uint8_t data0x16;
+    uint8_t data_type;
+  };
 
   bool
-  load_plugins () noexcept
+  load_plugins ();
+
+  bool
+  load_data (ProductionPackage *thisptr, void *param2, struct data_info &di, void *out_buf);
+
+  uint32_t
+  get_rawsize (uint32_t data_id);
+
+  InlineHooker<decltype(&load_plugins)> *check_dlls_hooker;
+  InlineHooker<decltype(&get_rawsize)> *get_rawsize_hooker;
+  VFPHooker<decltype(&load_data)> *load_data_hooker;
+
+  // The check_dlls returns true if the number of loaded modules (exe + dlls) in the executable's directory
+  // is equal to 2. Otherwise, this returns false. Our function, of course, always return true.
+  bool
+  load_plugins ()
   {
     // Dll search paths starting from the current directory
     const TCHAR *search_paths[] = {
@@ -67,47 +94,18 @@ namespace {
     return true;
   }
 
-  struct databin_info {
-    uint32_t item_count;
-    // We do not use this because id == idx on NGS2's databin
-    uint32_t offset_to_id_and_idx_pairs;
-    uint32_t id_and_idx_pairs_count;
-    uint32_t data0xc;
-  };
-
-  struct ProductionPackage {
-    uintptr_t vfp1;
-    uint8_t path[0x10];
-    uint64_t data0x18;
-    uint64_t data0x20;
-    struct databin_info &databin_info;
-    // imcomplete
-  };
-
-  struct data_info {
-    uint32_t offset_to_data;
-    uint32_t data0x4;
-    uint32_t rawsize;
-    uint32_t compressed_size;
-    uint32_t data0x10;
-    uint16_t data0x14;
-    uint8_t data0x16;
-    uint8_t data_type;
-  };
+  HANDLE
+  open_mod_data (uint32_t data_id);
 
   HANDLE
-  open_mod_data (uint32_t data_id) noexcept;
-
-  HANDLE
-  open_mod_data (struct databin_info &dbi, struct data_info &di) noexcept;
+  open_mod_data (struct databin_info &dbi, struct data_info &di);
 
   bool
-  load_data (ProductionPackage *thisptr, void *param2, struct data_info &di, void *out_buf) noexcept
+  load_data (ProductionPackage *thisptr, void *param2, struct data_info &di, void *out_buf)
   {
     HANDLE hFile = open_mod_data (thisptr->databin_info, di);
     if (hFile == INVALID_HANDLE_VALUE)
-      return reinterpret_cast<decltype(load_data) *>
-	(load_data_tramp) (thisptr, param2, di, out_buf);
+      return load_data_hooker->get_trampoline () (thisptr, param2, di, out_buf);
 
     LARGE_INTEGER fsize;
     GetFileSizeEx (hFile, &fsize);
@@ -119,12 +117,11 @@ namespace {
   }
 
   uint32_t
-  get_rawsize (uint32_t data_id) noexcept
+  get_rawsize (uint32_t data_id)
   {
     HANDLE hFile = open_mod_data (data_id);
     if (hFile == INVALID_HANDLE_VALUE)
-      return reinterpret_cast<decltype(get_rawsize) *>
-	(get_rawsize_tramp) (data_id);
+      return get_rawsize_hooker->get_trampoline () (data_id);
 
     LARGE_INTEGER size;
     GetFileSizeEx (hFile, &size);
@@ -133,7 +130,7 @@ namespace {
   }
 
   HANDLE
-  open_mod_data (uint32_t data_id) noexcept
+  open_mod_data (uint32_t data_id)
   {
     // 16 is sufficiently enough for id string since the
     // number of items in databin is below 10000.
@@ -162,7 +159,7 @@ namespace {
   }
 
   HANDLE
-  open_mod_data (struct databin_info &dbi, struct data_info &di) noexcept
+  open_mod_data (struct databin_info &dbi, struct data_info &di)
   {
     span<uint32_t> di_ofs {
       reinterpret_cast<uint32_t *>(reinterpret_cast<uintptr_t>(&dbi) + sizeof(dbi)),
@@ -175,42 +172,16 @@ namespace {
     auto i = lower_bound (di_ofs.begin (), di_ofs.end (), o);
     return open_mod_data (distance (di_ofs.begin (), i));
   }
-
-  HookMap *hook_map;
-
-  // The check_dlls returns true if the number of loaded modules (exe + dlls) in the executable's directory
-  // is equal to 2. Otherwise, this returns false. Our function, of course, always return true.
-  bool
-  init_check_dlls ()
-  {
-    return hook_map->hook (check_dlls_func, reinterpret_cast<uint64_t>(load_plugins));
-  }
-
-  bool
-  init_load_data ()
-  {
-    // To make inline-hook working, we fills the code after the prologue with
-    // NOPs, which makes polyhook think the prologue is long enough.
-    const uint8_t nop9[] = {
-      0x66, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00,
-    };
-    WriteMemory (get_rawsize_func + 0xc, nop9);
-    get_rawsize_tramp = hook_map->hook (get_rawsize_func, reinterpret_cast<uintptr_t>(get_rawsize));
-
-    load_data_tramp = *reinterpret_cast<uintptr_t *>(load_data_vfp);
-    uintptr_t load_data_addr = reinterpret_cast<uintptr_t>(load_data);
-    return get_rawsize_tramp
-      && WriteMemory (load_data_vfp, load_data_addr);
-			  
-  }
 }
 
 namespace ngs2::nm::plugin::core::loader {
   void
   init ()
   {
-    load_data_vfp = start_of_data + 0x1516F0;
-
+    uintptr_t load_data_vfp = start_of_data + 0x1516F0;
+    uintptr_t check_dlls_func;
+    uintptr_t get_rawsize_func;
+  
     switch (binary_kind)
       {
       case NGS2_BINARY_KIND::STEAM_JP:
@@ -223,16 +194,8 @@ namespace ngs2::nm::plugin::core::loader {
 	break;
       }
 
-    hook_map = new HookMap;
-    if (!init_check_dlls ())
-      throw runtime_error ("INIT FAILED: nm::plugin::core::loader::init_check_dlls");
-    if (!init_load_data ())
-      throw runtime_error ("INIT FAILED: nm::plugin::core::loader::init_load_data");
-  }
-
-  void
-  deinit ()
-  {
-    delete hook_map;
+    check_dlls_hooker = new InlineHooker<decltype(&load_plugins)> (check_dlls_func, load_plugins);
+    get_rawsize_hooker = new InlineHooker<decltype(&get_rawsize)> (get_rawsize_func, get_rawsize);
+    load_data_hooker = new VFPHooker<decltype(&load_data)> (load_data_vfp, load_data);
   }
 }

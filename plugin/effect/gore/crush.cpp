@@ -1,39 +1,32 @@
 /*
- * NGS2 NM Gore Plugin by Nozomi Miyamori is marked with CC0 1.0
+ * NGS2 NM Plugin by Nozomi Miyamori is marked with CC0 1.0.
+ * This file is a part of NGS2 NM Plugin.
+ *
  * This module restores NG2 crushing gore effects (e.g. Stuff, Tonfa).
  */
+
 #include "util.hpp"
+#include "hook.hpp"
 #include "gore.hpp"
-#include <algorithm>
+#include <cstdint>
 
 using namespace std;
 using namespace ngs2::nm::util;
 using namespace ngs2::nm::plugin::effect::gore;
 
 namespace {
-  constinit const uint8_t trigger_VanishCrushRootEffect_func_pattern[] = {
-    0x40, 0x57, 0x48, 0x81, 0xec, 0x90, 0x00, 0x00,
-    0x00, 0x48, 0x8b, 0xf9, 0x66, 0xc7, 0x01, 0x01,
-    0x01,
-  };
-  constinit const uint8_t trigger_BloodCrushRootEffect_func_pattern[] = {
-    0x48, 0x89, 0x5c, 0x24, 0x08, 0x57, 0x48, 0x83,
-    0xec, 0x20, 0x49, 0x8b, 0x00, 0x48, 0x8b, 0xfa,
-  };
-  constinit const uint8_t get_OPTscat_indices_func_pattern[] = {
-    0x40, 0x57, 0x0f, 0xb6, 0x41, 0x1a, 0x45, 0x33,
-    0xdb, 0x48, 0x8b, 0xfa, 0x3c, 0xff, 0x75, 0x04,
-  };
+  uint8_t *
+  trigger_VanishCrushRootEffect (uintptr_t param1, uintptr_t param2);
 
-  uintptr_t model_tmc_relation_offset_list;
-  uintptr_t trigger_VanishCrushRootEffect_func;
+  int
+  get_OPTscat_indices (struct model &mdl, uint32_t *out_indices);
+
   uintptr_t trigger_BloodCrushRootEffect_func;
-  uintptr_t get_OPTscat_indices_func;
-  
-  uintptr_t trigger_VanishCrushRootEffect_tramp;
+  InlineHooker<decltype(&trigger_VanishCrushRootEffect)> *trigger_VanishCrushRootEffect_hooker;
+  InlineHooker<decltype(&get_OPTscat_indices)> *get_OPTscat_indices_hooker;
 
   uint8_t *
-  trigger_VanishCrushRootEffect (uintptr_t param1, uintptr_t param2) noexcept
+  trigger_VanishCrushRootEffect (uintptr_t param1, uintptr_t param2)
   {
     // trigger_BloodCrushRootEffect calls trigger_BloodCrushRootEffect_helper
     // internally. trigger_BloodCrushRootEffect_helper setups the most of the
@@ -52,8 +45,7 @@ namespace {
     // somehow we can implement the OPTscat injection.
 
     if (!r[1])
-      return reinterpret_cast<decltype(trigger_VanishCrushRootEffect) *>
-	(trigger_VanishCrushRootEffect_tramp)(param1, param2);
+      return trigger_VanishCrushRootEffect_hooker->get_trampoline () (param1, param2);
 
     return r;
   }
@@ -63,8 +55,10 @@ namespace {
   // The target (enemy's) TMC data is obtained from the first param.
   // We have reimplemented this function because the original function has a bug.
   int
-  get_OPTscat_indices (struct model &mdl, uint32_t *out_indices) noexcept
+  get_OPTscat_indices (struct model &mdl, uint32_t *out_indices)
   {
+    uintptr_t model_tmc_relation_offset_list = start_of_data + 0x69af30;
+
     uintptr_t mt_rel_ofs = reinterpret_cast<uintptr_t *>
       (model_tmc_relation_offset_list)[mdl.info_idx];
 
@@ -109,54 +103,48 @@ namespace {
 
     return n;
   }
-
-  HookMap *hook_map;
-
-  bool
-  init_trigger_BloodCrushRootEffect ()
-  {
-    return trigger_VanishCrushRootEffect_tramp = hook_map->hook (trigger_VanishCrushRootEffect_func,
-		 reinterpret_cast<uintptr_t>(trigger_VanishCrushRootEffect));
-  }
-
-  bool
-  init_get_OPTscat_indices ()
-  {
-    // To make inline-hook working.
-    const uint8_t nop6[] = { 0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00 };
-    WriteMemory (get_OPTscat_indices_func + 0xe, nop6);
-    return hook_map->hook (get_OPTscat_indices_func, reinterpret_cast<uintptr_t>(get_OPTscat_indices));
-  }
 }
 
 namespace ngs2::nm::plugin::effect::gore::crush {
   void
   init ()
   {
-    model_tmc_relation_offset_list = start_of_data + 0x69af30;
+    uintptr_t trigger_VanishCrushRootEffect_func;
+    uintptr_t get_OPTscat_indices_func;
+    uintptr_t alloc_EFF_CommonIzunaBloodExp_func;
+    uintptr_t alloc_EFF_CommonSuicideBloodExp_func;
+
     switch (binary_kind)
       {
       case NGS2_BINARY_KIND::STEAM_JP:
 	trigger_VanishCrushRootEffect_func = base_of_image + 0x14608f0;
 	trigger_BloodCrushRootEffect_func = base_of_image + 0xc0fcb0;
 	get_OPTscat_indices_func = base_of_image + 0x144c8e0;
+	alloc_EFF_CommonIzunaBloodExp_func = base_of_image + 0x10206f0;
+	alloc_EFF_CommonSuicideBloodExp_func = base_of_image + 0x10200c0;
 	break;
       case NGS2_BINARY_KIND::STEAM_AE:
 	trigger_VanishCrushRootEffect_func = base_of_image + 0x1460d20;
 	trigger_BloodCrushRootEffect_func = base_of_image + 0x0c0fc40;
 	get_OPTscat_indices_func = base_of_image + 0x144cb00;
+	alloc_EFF_CommonIzunaBloodExp_func = base_of_image + 0x1020990;
+	alloc_EFF_CommonSuicideBloodExp_func = base_of_image + 0x1020360;
 	break;
       }
-    hook_map = new HookMap;
-    if (!init_trigger_BloodCrushRootEffect ())
-      throw std::runtime_error ("INIT FAILED: nm::plugin::effect::gore::crush::init_trigger_BloodCrushRootEffect()");
-    if (!init_get_OPTscat_indices ())
-      throw std::runtime_error ("INIT FAILED: nm::plugin::effect::gore::crush::init_get_OPTscat_indices()");
-  }
 
-  void
-  deinit ()
-  {
-    delete hook_map;
+    trigger_VanishCrushRootEffect_hooker =
+      new InlineHooker<decltype(&trigger_VanishCrushRootEffect)> (trigger_VanishCrushRootEffect_func,
+								  trigger_VanishCrushRootEffect);
+
+    get_OPTscat_indices_hooker =
+      new InlineHooker<decltype(&get_OPTscat_indices)> (get_OPTscat_indices_func,
+							get_OPTscat_indices);
+
+    // Credit: enhuhu
+    // These disable EFF_CommonIzunaBloodExp and EFF_CommnSuicideBloodExp,
+    // which cause dim purple steam.
+    uint8_t ret = 0xc3;
+    WriteMemory (alloc_EFF_CommonIzunaBloodExp_func, ret);
+    WriteMemory (alloc_EFF_CommonSuicideBloodExp_func, ret);
   }
 }

@@ -1,14 +1,24 @@
+/*
+ * NGS2 NM Plugin by Nozomi Miyamori is marked with CC0 1.0.
+ * This file is a part of NGS2 NM Plugin.
+ */
+
 #include "util.hpp"
+#include "hook.hpp"
 #include <windef.h>
 #include <winbase.h>
-#include <libloaderapi.h>
+#include <cassert>
+
+#if !defined(NDEBUG)
 #include <iostream>
-#include <stdexcept>
+#endif
 
 namespace ngs2::nm::plugin::core {
   namespace loader {
     void init ();
-    void deinit ();
+  }
+  namespace bugfix {
+    void init ();
   }
 }
 
@@ -17,40 +27,18 @@ using namespace ngs2::nm::util;
 using namespace ngs2::nm::plugin::core;
 
 namespace {
-  HookMap *hook_map;
-
-  BOOL
-  SetCurrentDirectoryW_ (LPCWSTR lpPathName);
-
-  // This is the early stage init to keep SteamDRM from decoding our codes.
-  // We instead inject our codes after the decoding phase by hooking
-  // SetCurrentDirectoryW.
-  void
-  init ()
-  {
-    hook_map = new HookMap;
-    HMODULE hMod = GetModuleHandle ("Kernel32.dll");
-    uintptr_t proc = reinterpret_cast<uintptr_t>
-      (GetProcAddress (hMod, "SetCurrentDirectoryW"));
-    hook_map->hook (proc, reinterpret_cast<uintptr_t>(SetCurrentDirectoryW_));
-  }
+  InlineHooker<decltype(&SetCurrentDirectoryW)> *SetCurrentDirectoryW_hooker;
 
   // This is the real init.
   BOOL
   SetCurrentDirectoryW_ (LPCWSTR lpPathName)
   {
-    try
-      {
-	loader::init();
-	D(cout << "INIT SUCCESS: nm::plugin::core" << endl);
-      }
-    catch (const exception &e)
-      {
-	D(cout << e.what () << endl);
-      }
-    // We do not need the hook anymore.
-    delete hook_map;
+    assert((cout << "INIT: core" << endl, 1));
+    loader::init ();
+    bugfix::init ();
 
+    // We do not need the hook anymore.
+    delete SetCurrentDirectoryW_hooker;
     return SetCurrentDirectoryW(lpPathName);
   }
 }
@@ -63,18 +51,14 @@ DllMain (HINSTANCE hinstDLL,
   switch (fdwReason)
     {
     case DLL_PROCESS_ATTACH:
-      try
-	{
-	  init ();
-	}
-      catch (const exception &e)
-	{
-	  D(cout << e.what () << endl);
-	  return FALSE;
-	}
+      // This is the early stage init to keep SteamDRM from decoding our codes.
+      // We instead inject our codes after the decoding phase by hooking
+      // SetCurrentDirectoryW.
+      SetCurrentDirectoryW_hooker =
+	new InlineHooker<decltype(&SetCurrentDirectoryW)> (SetCurrentDirectoryW,
+							   SetCurrentDirectoryW_);
       break;
     case DLL_PROCESS_DETACH:
-      loader::deinit ();
       break;
     default:
       break;

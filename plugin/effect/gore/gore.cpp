@@ -1,46 +1,27 @@
 /*
- * NGS2 NM Gore Plugin by Nozomi Miyamori is marked with CC0 1.0
+ * NGS2 NM Plugin by Nozomi Miyamori is marked with CC0 1.0.
+ * This file is a part of NGS2 NM Plugin.
+ *
  * This module restores NG2 misc gore effect.
  */
 #include "util.hpp"
+#include "hook.hpp"
 #include "gore.hpp"
+#include <limits>
+#include <cstdint>
 
 using namespace std;
 using namespace ngs2::nm::util;
 using namespace ngs2::nm::plugin::effect::gore;
 
 namespace {
-  constinit uint8_t update_SUP_nodeobj_visibility_func_pattern[] = {
-    0x40, 0x55, 0x41, 0x0f, 0xb6, 0xe8, 0x83, 0xfa,
-    0x3f, 0x0f, 0x87, 0x08, 0x01, 0x00, 0x00,
-  };
-
-  constinit uint8_t trigger_delimb_effect_func_pattern[] = {
-    0x48, 0x89, 0x5c, 0x24, 0x18, 0x48, 0x89, 0x6c,
-    0x24, 0x20, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55,
-    0x41, 0x56, 0x48, 0x81, 0xec, 0x20, 0x01, 0x00,
-    0x00,
-  };
-
-  constinit uint8_t make_hit_effect_func_pattern[] = {
-    0x48, 0x89, 0x5c, 0x24, 0x08, 0x48, 0x89, 0x74,
-    0x24, 0x10, 0x48, 0x89, 0x7c, 0x24, 0x20, 0x55,
-    0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57,
-    0x48, 0x8d, 0xac, 0x24, 0xd0, 0xfe, 0xff, 0xff,
-  };
-
-  uintptr_t model_node_layer_list_offset_list;
-  uintptr_t ryu_bow_attack_type_id;
-  uintptr_t momiji_bow_attack_type_id;
-  uintptr_t rachel_gun_attack_type_id;
-  uintptr_t object_fade_out_start_time;
-
-  uintptr_t update_SUP_nodeobj_visibility_func;
-  uintptr_t trigger_delimb_effect_func;
-  uintptr_t make_hit_effect_func;
+  void
+  update_SUP_nodeobj_visibility (struct model &mdl, uint32_t nodeobj_idx);
 
   void
-  update_nodeobj_visibility (struct model_node_layer *nl, uint8_t visibility, bool is_top) noexcept;
+  update_nodeobj_visibility (struct model_node_layer *nl, uint8_t visibility, bool is_top);
+
+  InlineHooker<decltype(&update_SUP_nodeobj_visibility)> *update_SUP_nodeobj_visibility_hooker;
 
   // This function is called when delimb happens. This updates the visibility of
   // SUP_* NodeObj that has nodeobj_idx for its parameters. That makes delimbed body
@@ -54,11 +35,14 @@ namespace {
   // Mages reveal their faces when players delimb their heads (but the very short period
   // time: until their heads land :)
   void
-  update_SUP_nodeobj_visibility (struct model &mdl, uint32_t nodeobj_idx) noexcept
+  update_SUP_nodeobj_visibility (struct model &mdl, uint32_t nodeobj_idx)
   {
     // Param3 that we ignore is a pointer to somewhere in the memory actually.
     // The original implementation converts param3 to byte (not byte*!), then the function uses
     // it as the new visibility value! That worked somehow unbelevably.
+
+    uintptr_t model_node_layer_list_offset_list = start_of_data + 0x69ad10;
+
     uintptr_t mnl_list_offset = reinterpret_cast<uintptr_t *>
       (model_node_layer_list_offset_list)[mdl.info_idx];
     auto nl = reinterpret_cast<model_node_layer **>(*mdl.p_state + mnl_list_offset)[nodeobj_idx];
@@ -66,7 +50,7 @@ namespace {
   }
 
   void
-  update_nodeobj_visibility (struct model_node_layer *nl, uint8_t visibility, bool is_top) noexcept
+  update_nodeobj_visibility (struct model_node_layer *nl, uint8_t visibility, bool is_top)
   {
     enum {
       MOT = 1,
@@ -92,32 +76,23 @@ namespace {
 	nl = nl->next_sibling;
       }
   }
-
-  HookMap *hook_map;
-
-  bool
-  init_update_SUP_nodeobj_visibility ()
-  {
-    // This makes inline-hook working.
-    constexpr uint8_t nop13[] = {
-      0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00,
-      0x0f, 0x1f, 0x80, 0x00, 0x00, 0x00, 0x00,
-    };
-    WriteMemory (update_SUP_nodeobj_visibility_func + 0x9, nop13);
-    return hook_map->hook (update_SUP_nodeobj_visibility_func,
-		 reinterpret_cast<uintptr_t>(update_SUP_nodeobj_visibility));
-  }
 }
 
-namespace ngs2::nm::plugin::effect::gore::gore {
+namespace ngs2::nm::plugin::effect::gore {
   void
   init ()
   {
-    object_fade_out_start_time = start_of_data + 0x169cf4;
-    momiji_bow_attack_type_id = start_of_data + 0x52428;
-    ryu_bow_attack_type_id = start_of_data + 0x545c8;
-    rachel_gun_attack_type_id = start_of_data + 0x55ca8;
-    model_node_layer_list_offset_list = start_of_data + 0x69ad10;
+    uintptr_t object_fade_out_start_time = start_of_data + 0x169cf4;
+    uintptr_t momiji_bow_attack_type_id = start_of_data + 0x52428;
+    uintptr_t ryu_bow_attack_type_id = start_of_data + 0x545c8;
+    uintptr_t rachel_gun_attack_type_id = start_of_data + 0x55ca8;
+
+    uintptr_t update_SUP_nodeobj_visibility_func;
+    uintptr_t trigger_delimb_effect_func;
+    uintptr_t make_hit_effect_func;
+
+    uintptr_t trigger_delimb_effect_limb_time_limit_imm_ofs;
+    uintptr_t trigger_delimb_effect_hs_intens_imm_ofs;
 
     switch (binary_kind)
       {
@@ -125,11 +100,17 @@ namespace ngs2::nm::plugin::effect::gore::gore {
 	update_SUP_nodeobj_visibility_func = base_of_image + 0x14556a0;
 	trigger_delimb_effect_func = base_of_image + 0x1457c50;
 	make_hit_effect_func = base_of_image + 0x10474f0;
+
+	trigger_delimb_effect_limb_time_limit_imm_ofs = trigger_delimb_effect_func + 0x2c5 + 1;
+	trigger_delimb_effect_hs_intens_imm_ofs = trigger_delimb_effect_func + 0x181 + 6;
 	break;
       case NGS2_BINARY_KIND::STEAM_AE:
 	update_SUP_nodeobj_visibility_func = base_of_image + 0x1455880;
 	trigger_delimb_effect_func = base_of_image + 0x1457df0;
 	make_hit_effect_func = base_of_image + 0x1047790;
+
+	trigger_delimb_effect_limb_time_limit_imm_ofs = trigger_delimb_effect_func + 0x2a9 + 1;
+	trigger_delimb_effect_hs_intens_imm_ofs = trigger_delimb_effect_func + 0x17d + 6;
 	break;
       }
 
@@ -191,57 +172,30 @@ namespace ngs2::nm::plugin::effect::gore::gore {
 	WriteMemory (base_of_image + 0x14cfe30 + 0x12e, nop28);
       }
 
-    {
-      // Credits: Fiend Busa
-      // This is the time how long the dismembered limbs remain.
-      // They set 1 by default, which means limbs disappear immediately.
-      // Instead, we set very very long time limit.
-      uint32_t time_limit = 0x7fffffff;
-      uintptr_t ofs;
-      switch (binary_kind)
-	{
-	case NGS2_BINARY_KIND::STEAM_JP:
-	  ofs = 0x2c5;
-	  break;
-	case NGS2_BINARY_KIND::STEAM_AE:
-	  ofs = 0x2a9;
-	  break;
-	}
-      WriteMemory (trigger_delimb_effect_func + ofs + 1, time_limit);
-    }
+    // Credits: Fiend Busa
+    // This is the time how long the dismembered limbs remain.
+    // They set 1 by default, which means limbs disappear immediately.
+    // Instead, we set very very long time limit.
+    WriteMemory (trigger_delimb_effect_limb_time_limit_imm_ofs, static_cast<uint32_t>(0x7fffffff));
 
-    {
-      // Credits: Fiend Busa
-      // This is the hitstop (micro freeeze) intensity when you trigger delimb.
-      // The higher the value, the longer it freezes.
-      // They set 3 by default.
-      // const uintptr_t delimb_hit_stop_intensity = base_of_image + 0x212160c;
-      uint32_t hs_intens = 0;
-      uintptr_t ofs;
-      switch (binary_kind)
-	{
-	case NGS2_BINARY_KIND::STEAM_JP:
-	  ofs = 0x181;
-	  break;
-	case NGS2_BINARY_KIND::STEAM_AE:
-	  ofs = 0x17d;
-	  break;
-	}
-      WriteMemory (trigger_delimb_effect_func + ofs + 6, hs_intens);
-    }
 
-    {
-      // Credits: Fiend Busa
-      // Corpses will not fade out.
-      constexpr float time = numeric_limits<float>::infinity ();
-      WriteMemory (object_fade_out_start_time, time);
-    }
+    // Credits: Fiend Busa
+    // This is the hitstop (micro freeeze) intensity when you trigger delimb.
+    // The higher the value, the longer it freezes.
+    // They set 3 by default.
+    // const uintptr_t delimb_hit_stop_intensity = base_of_image + 0x212160c;
+    WriteMemory (trigger_delimb_effect_hs_intens_imm_ofs, static_cast<uint32_t>(0));
+
+    // Credits: Fiend Busa
+    // Corpses will not fade out.
+    WriteMemory (object_fade_out_start_time, numeric_limits<float>::infinity ());
 
     {
       // This circumvents the blocking to trigger the EFF_ArrowHitBlood.
       // We have chosen `and' over `xor' becase it has the same size of codes.
       constexpr uint8_t and_eax_0[] = { 0x83, 0xe0, 0x00 };
-      WriteMemory (make_hit_effect_func + 0x10f8, and_eax_0);
+      uintptr_t addr = make_hit_effect_func + 0x10f8;
+      WriteMemory (addr, and_eax_0);
 
       // To make EFF_ArrowHitBlood work.
       constexpr uint16_t attack_type_id = 0x1002;
@@ -250,16 +204,9 @@ namespace ngs2::nm::plugin::effect::gore::gore {
       WriteMemory (rachel_gun_attack_type_id, attack_type_id);
     }
 
-    hook_map = new HookMap;
-
-    if (!init_update_SUP_nodeobj_visibility ())
-      throw std::runtime_error ("INIT FAILED: nm::plugin::effect::gore::gore::init_update_SUP_nodeobj_visibility()");
-  }
-
-  void
-  deinit ()
-  {
-    delete hook_map;
+    update_SUP_nodeobj_visibility_hooker =
+      new InlineHooker<decltype(&update_SUP_nodeobj_visibility)> (update_SUP_nodeobj_visibility_func,
+								  &update_SUP_nodeobj_visibility);
   }
 }
 

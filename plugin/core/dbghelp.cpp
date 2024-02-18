@@ -1,3 +1,8 @@
+/*
+ * NGS2 NM Plugin by Nozomi Miyamori is marked with CC0 1.0.
+ * This file is a part of NGS2 NM Plugin.
+ */
+
 #define WIN32_LEAN_AND_MEAN
 #include <windef.h>
 #include <unknwn.h>

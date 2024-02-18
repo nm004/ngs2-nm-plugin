@@ -1,3 +1,8 @@
+/*
+ * NGS2 NM Plugin by Nozomi Miyamori is marked with CC0 1.0.
+ * This file is a part of NGS2 NM Plugin.
+ */
+
 #ifndef NGS2_NM_PLUGIN_EFFECT_GORE
 #define NGS2_NM_PLUGIN_EFFECT_GORE
 #define WIN32_LEAN_AND_MEAN
@@ -39,39 +44,39 @@ namespace ngs2::nm::plugin::effect::gore {
    * p.next_sibling == MOTe_you_achest
 
    MOTe_you_ahips
-   |-OPTscat16
-   |-OPTscat15
-   ...
-   |-OPTscat0
-   |
-   |-MOTe_you_arhip
-   |
-   |-MOTe_you_alhip
-   | |-SUP_lhip
-   | |
-   | |-MOTe_you_alshin
-   |   |-SUP_lshin
-   |   |-MOTe_you_alfoot
-   |
-   |-MOTe_you_achest
-     |-SUP_chest
-     |-MOTe_you_arsholder
-     |
-     |-MOTe_you_alshoulder
-     | |-SUP_lshld
-     | |-MOTe_you_alfore
-     |   |-SUP_lfore
-     |   |-MOTe_you_alhand
-     |
-     |-MOTe_you_ahead
-       |-WGT_acs_maedare
-       |-OPTcorps_maedare
-       |-OPT_acs_maedare_r03
-       |-OPT_acs_maedare_r02
-       ...
-       |-OPT_acs_maedare_l03
-       ...
-       |-OPT_acs_maedare_l00
+    |-OPTscat16
+    |-OPTscat15
+    ...
+    |-OPTscat0
+    |
+    |-MOTe_you_arhip
+    |
+    |-MOTe_you_alhip
+    | |-SUP_lhip
+    | |
+    | |-MOTe_you_alshin
+    |   |-SUP_lshin
+    |   |-MOTe_you_alfoot
+    |
+    |-MOTe_you_achest
+      |-SUP_chest
+      |-MOTe_you_arsholder
+      |
+      |-MOTe_you_alshoulder
+      | |-SUP_lshld
+      | |-MOTe_you_alfore
+      |   |-SUP_lfore
+      |   |-MOTe_you_alhand
+      |
+      |-MOTe_you_ahead
+        |-WGT_acs_maedare
+	|-OPTcorps_maedare
+	|-OPT_acs_maedare_r03
+	|-OPT_acs_maedare_r02
+	...
+	|-OPT_acs_maedare_l03
+	...
+	|-OPT_acs_maedare_l00
   */
   
   struct model_node_layer {
@@ -107,21 +112,6 @@ namespace ngs2::nm::plugin::effect::gore {
     struct objgeo_list *next;
     // imcomplete
   };
-
-  namespace gore {
-    void init ();
-    void deinit ();
-  }
-
-  namespace crush {
-    void init ();
-    void deinit ();
-  }
-
-  namespace mutil {
-    void init ();
-    void deinit ();
-  }
 }
 
 #endif
