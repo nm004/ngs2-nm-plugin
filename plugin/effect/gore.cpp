@@ -22,6 +22,8 @@ namespace {
   update_nodeobj_visibility (struct model_node_layer *nl, uint8_t visibility, bool is_top);
 
   InlineHooker<decltype(&update_SUP_nodeobj_visibility)> *update_SUP_nodeobj_visibility_hooker;
+  CallHooker *trigger_hit_effect_hooker1;
+  CallHooker *trigger_hit_effect_hooker2;
 
   // This function is called when delimb happens. This updates the visibility of
   // SUP_* NodeObj that has nodeobj_idx for its parameters. That makes delimbed body
@@ -38,19 +40,23 @@ namespace {
   update_SUP_nodeobj_visibility (struct model &mdl, uint32_t nodeobj_idx)
   {
     // Param3 that we ignore is a pointer to somewhere in the memory actually.
-    // The original implementation converts param3 to byte (not byte*!), then the function uses
-    // it as the new visibility value! That worked somehow unbelevably.
+    // The original implementation converts param3 to byte (not byte*!),
+    // then the function uses it as the new visibility value! That worked
+    // somehow unbelevably.
 
     uintptr_t model_node_layer_list_offset_list = start_of_data + 0x69ad10;
 
     uintptr_t mnl_list_offset = reinterpret_cast<uintptr_t *>
       (model_node_layer_list_offset_list)[mdl.info_idx];
-    auto nl = reinterpret_cast<model_node_layer **>(*mdl.p_state + mnl_list_offset)[nodeobj_idx];
+    auto nl = reinterpret_cast<model_node_layer **>
+      (*mdl.p_state + mnl_list_offset)[nodeobj_idx];
     update_nodeobj_visibility (nl->first_child, 0, true);
   }
 
   void
-  update_nodeobj_visibility (struct model_node_layer *nl, uint8_t visibility, bool is_top)
+  update_nodeobj_visibility (struct model_node_layer *nl,
+			     uint8_t visibility,
+			     bool is_top)
   {
     enum {
       MOT = 1,
@@ -79,17 +85,19 @@ namespace {
 }
 
 namespace ngs2::nm::plugin::effect::gore {
+  
   void
   init ()
   {
     uintptr_t object_fade_out_start_time = start_of_data + 0x169cf4;
-    uintptr_t momiji_bow_attack_type_id = start_of_data + 0x52428;
-    uintptr_t ryu_bow_attack_type_id = start_of_data + 0x545c8;
-    uintptr_t rachel_gun_attack_type_id = start_of_data + 0x55ca8;
+    uintptr_t momiji_bow_attack_category = start_of_data + 0x52428;
+    uintptr_t ryu_bow_attack_category = start_of_data + 0x545c8;
+    uintptr_t rachel_gun_attack_category = start_of_data + 0x55ca8;
 
     uintptr_t update_SUP_nodeobj_visibility_func;
     uintptr_t trigger_delimb_effect_func;
-    uintptr_t make_hit_effect_func;
+    uintptr_t trigger_hit_effect_func;
+    uintptr_t calc_trigger_hit_effect_param_func;
 
     uintptr_t trigger_delimb_effect_limb_time_limit_imm_ofs;
     uintptr_t trigger_delimb_effect_hs_intens_imm_ofs;
@@ -99,18 +107,24 @@ namespace ngs2::nm::plugin::effect::gore {
       case NGS2_BINARY_KIND::STEAM_JP:
 	update_SUP_nodeobj_visibility_func = base_of_image + 0x14556a0;
 	trigger_delimb_effect_func = base_of_image + 0x1457c50;
-	make_hit_effect_func = base_of_image + 0x10474f0;
+	trigger_hit_effect_func = base_of_image + 0x10474f0;
+	calc_trigger_hit_effect_param_func = base_of_image + 0x1047220;
 
-	trigger_delimb_effect_limb_time_limit_imm_ofs = trigger_delimb_effect_func + 0x2c5 + 1;
-	trigger_delimb_effect_hs_intens_imm_ofs = trigger_delimb_effect_func + 0x181 + 6;
+	trigger_delimb_effect_limb_time_limit_imm_ofs =
+	  trigger_delimb_effect_func + 0x2c5 + 1;
+	trigger_delimb_effect_hs_intens_imm_ofs =
+	  trigger_delimb_effect_func + 0x181 + 6;
 	break;
       case NGS2_BINARY_KIND::STEAM_AE:
 	update_SUP_nodeobj_visibility_func = base_of_image + 0x1455880;
 	trigger_delimb_effect_func = base_of_image + 0x1457df0;
-	make_hit_effect_func = base_of_image + 0x1047790;
+	trigger_hit_effect_func = base_of_image + 0x1047790;
+	calc_trigger_hit_effect_param_func = base_of_image + 0x10474c0;
 
-	trigger_delimb_effect_limb_time_limit_imm_ofs = trigger_delimb_effect_func + 0x2a9 + 1;
-	trigger_delimb_effect_hs_intens_imm_ofs = trigger_delimb_effect_func + 0x17d + 6;
+	trigger_delimb_effect_limb_time_limit_imm_ofs =
+	  trigger_delimb_effect_func + 0x2a9 + 1;
+	trigger_delimb_effect_hs_intens_imm_ofs =
+	  trigger_delimb_effect_func + 0x17d + 6;
 	break;
       }
 
@@ -176,8 +190,8 @@ namespace ngs2::nm::plugin::effect::gore {
     // This is the time how long the dismembered limbs remain.
     // They set 1 by default, which means limbs disappear immediately.
     // Instead, we set very very long time limit.
-    WriteMemory (trigger_delimb_effect_limb_time_limit_imm_ofs, static_cast<uint32_t>(0x7fffffff));
-
+    WriteMemory (trigger_delimb_effect_limb_time_limit_imm_ofs,
+		 static_cast<uint32_t>(0x7fffffff));
 
     // Credits: Fiend Busa
     // This is the hitstop (micro freeeze) intensity when you trigger delimb.
@@ -190,59 +204,36 @@ namespace ngs2::nm::plugin::effect::gore {
     // Corpses will not fade out.
     WriteMemory (object_fade_out_start_time, numeric_limits<float>::infinity ());
 
-    {
-      // This circumvents the blocking to trigger the EFF_ArrowHitBlood.
-      // We have chosen `and' over `xor' becase it has the same size of codes.
-      constexpr uint8_t and_eax_0[] = { 0x83, 0xe0, 0x00 };
-      uintptr_t addr = make_hit_effect_func + 0x10f8;
-      WriteMemory (addr, and_eax_0);
+    // This circumvents the blocking to trigger the EFF_ArrowHitBlood.
+    // We have chosen `and' over `xor' becase it has the same size of codes.
+    constexpr uint8_t and_eax_0[] = { 0x83, 0xe0, 0x00 };
+    uintptr_t addr = trigger_hit_effect_func + 0x10f8;
+    WriteMemory (addr, and_eax_0);
 
-      // To make EFF_ArrowHitBlood work.
-      constexpr uint16_t attack_type_id = 0x1002;
-      WriteMemory (ryu_bow_attack_type_id, attack_type_id);
-      WriteMemory (momiji_bow_attack_type_id, attack_type_id);
-      WriteMemory (rachel_gun_attack_type_id, attack_type_id);
-    }
+    // To make EFF_ArrowHitBlood work.
+    constexpr uint16_t attack_category = 0x1002;
+    WriteMemory (ryu_bow_attack_category, attack_category);
+    WriteMemory (momiji_bow_attack_category, attack_category);
+    WriteMemory (rachel_gun_attack_category, attack_category);
+
+    // This restores the blood particle effect like vanilla NG2. Param1 of
+    // trigger_hit_effect() is a kind of attack. 5th byte of Param1 is related
+    // to the blood particle. It seems that 0x10000 or 0x20000 are only effective,
+    // however when you specify 0x20000, some attacks does not produce blood
+    // particle (e.g. Shuriken).
+    constexpr uint8_t or_ecx_0x10000[] = { 0x81, 0xc9, 0x00, 0x00, 0x01, 0x00 };
+    WriteMemory (trigger_hit_effect_func - sizeof(or_ecx_0x10000), or_ecx_0x10000);
+    trigger_hit_effect_hooker1 =
+      new CallHooker (calc_trigger_hit_effect_param_func + 0x26e,
+		      trigger_hit_effect_func - sizeof(or_ecx_0x10000));
+
+    trigger_hit_effect_hooker2 =
+      new CallHooker (calc_trigger_hit_effect_param_func + 0x29d,
+		      trigger_hit_effect_func - sizeof(or_ecx_0x10000));
+
 
     update_SUP_nodeobj_visibility_hooker =
-      new InlineHooker<decltype(&update_SUP_nodeobj_visibility)> (update_SUP_nodeobj_visibility_func,
-								  &update_SUP_nodeobj_visibility);
+      new InlineHooker<decltype(&update_SUP_nodeobj_visibility)>
+      (update_SUP_nodeobj_visibility_func, &update_SUP_nodeobj_visibility);
   }
-}
-
-namespace {
-  // const uintptr_t number_of_delimbed_limbs_list = base_of_image + 0x21b3000;
-  // const uintptr_t limb_appearance_timer_list = base_of_image + 0x6426880;
-  // we don't use this struct for now, but keep this for reference.
-  struct limb_appearance_timer {
-    uint32_t is_timer_used;
-    uint32_t _maybe_nodeobj_item_id;
-    uint32_t data0x8;
-    uint32_t data0xc;
-
-    uintptr_t hielay_item;
-    uint32_t data0x18;
-    uint32_t data0x1c;
-
-    uintptr_t _maybe_limb_pos_matrix;
-    uint64_t data0x28;
-
-    uint32_t data0x30;
-    uint32_t data0x34;
-    uint32_t data0x38;
-    uint32_t data0x3c;
-
-    uint32_t data0x40;
-    uint32_t data0x44;
-    uint32_t data0x48;
-    uint32_t _maybe_part_id;
-
-    uint32_t data0x50;
-    uint32_t data0x54;
-    uintptr_t _maybe_another_limb_pos_matrix;
-
-    uint32_t elapsed_time;
-    uint32_t time_limit;
-    uint64_t data0x68;
-  };
 }

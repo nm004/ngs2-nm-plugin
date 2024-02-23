@@ -9,8 +9,8 @@ Features
 ----------
 
  - Restoring NG2 mutilation gore effects
- - Restoring NG2 bow hit gore effects
  - Restoring NG2 crushing gore effects
+ - Restoring NG2 bow hit gore effects
  - No micro freezing when you delimb enemies
  - Bodies of non-fiends will never disappear
  - Load additional dll and mod data from a file

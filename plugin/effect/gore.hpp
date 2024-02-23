@@ -83,7 +83,7 @@ namespace ngs2::nm::plugin::effect::gore {
     uintptr_t nodeobj;
     uintptr_t hielay;
     uint32_t &nodeobj_type;
-    // for scan entier layer (unordered, maybe)
+    // for scanning entire layer (unordered, maybe)
     model_node_layer *next;
     model_node_layer *parent;
     model_node_layer *first_child;
@@ -103,7 +103,7 @@ namespace ngs2::nm::plugin::effect::gore {
     float data0x0[4];
     uintptr_t p_objgeo;
     uint32_t &nodeobj_idx;
-    uintptr_t data0x10;
+    uint32_t &nodeobj_type;
     // Is there any difference between model_geo.is_visible
     // and model_node_layer.is_visible1?
     uint16_t is_visible;
@@ -111,6 +111,41 @@ namespace ngs2::nm::plugin::effect::gore {
     uint32_t data0x1c;
     struct objgeo_list *next;
     // imcomplete
+  };
+
+  // const uintptr_t number_of_delimbed_limbs_list = base_of_image + 0x21b3000;
+  // const uintptr_t limb_appearance_timer_list = base_of_image + 0x6426880;
+  // we don't use this struct for now, but keep this for reference.
+  struct limb_appearance_timer {
+    uint32_t is_timer_used;
+    uint32_t _maybe_nodeobj_item_id;
+    uint32_t data0x8;
+    uint32_t data0xc;
+
+    uintptr_t hielay_item;
+    uint32_t data0x18;
+    uint32_t data0x1c;
+
+    uintptr_t _maybe_limb_pos_matrix;
+    uint64_t data0x28;
+
+    uint32_t data0x30;
+    uint32_t data0x34;
+    uint32_t data0x38;
+    uint32_t data0x3c;
+
+    uint32_t data0x40;
+    uint32_t data0x44;
+    uint32_t data0x48;
+    uint32_t _maybe_part_id;
+
+    uint32_t data0x50;
+    uint32_t data0x54;
+    uintptr_t _maybe_another_limb_pos_matrix;
+
+    uint32_t elapsed_time;
+    uint32_t time_limit;
+    uint64_t data0x68;
   };
 }
 

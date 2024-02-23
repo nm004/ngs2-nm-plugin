@@ -10,8 +10,10 @@
 #include <iostream>
 #endif
 
-namespace ngs2::nm::plugin::effect::gore {
-  void init ();
+namespace ngs2::nm::plugin::effect {
+  namespace gore{
+    void init ();
+  }
 
   namespace crush {
     void init ();
@@ -35,8 +37,8 @@ DllMain (HINSTANCE hinstDLL,
     case DLL_PROCESS_ATTACH:
       assert ((cout << "INIT: effect" << endl, 1));
       gore::init ();
-      gore::mutil::init ();
-      gore::crush::init ();
+      mutil::init ();
+      crush::init ();
       break;
     case DLL_PROCESS_DETACH:
       break;

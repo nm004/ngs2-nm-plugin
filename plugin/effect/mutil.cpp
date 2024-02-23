@@ -13,7 +13,7 @@ using namespace std;
 using namespace ngs2::nm::util;
 using namespace ngs2::nm::plugin::effect::gore;
 
-namespace ngs2::nm::plugin::effect::gore::mutil {
+namespace ngs2::nm::plugin::effect::mutil {
   CallHooker *alloc_BloodMutilationRootEffect_hooker;
   CallHooker *trigger_VanishMutilationRootEffect_hooker;
   CallHooker *trigger_VanishViscosityEffect_hooker;
@@ -57,16 +57,14 @@ namespace ngs2::nm::plugin::effect::gore::mutil {
     // We inject the small code that adds 2 to param3 of adjust_BloodMutilationRootEffect_params, which
     // makes the function can adjust params to create bigger blood jet and wider blood shower.
     // If the param3 of bit 8 is high, it looks like the effect is the minor version of the one bit 8 is low.
-    const uintptr_t adjust_BloodMutilationRootEffect_params_above_4 = adjust_BloodMutilationRootEffect_params_func - 4;
-    const uint8_t add_r8b_0x02[] = { 0x41, 0x80, 0xc0, 0x02 };
-    WriteMemory(adjust_BloodMutilationRootEffect_params_above_4, add_r8b_0x02);
+    const uint8_t add_r8b_0x2[] = { 0x41, 0x80, 0xc0, 0x02 };
+    WriteMemory(adjust_BloodMutilationRootEffect_params_func - sizeof(add_r8b_0x2), add_r8b_0x2);
 
     // We overwrites the call address of alloc_BloodMutilationRootEffect in
     // trigger_BloodMutilationRootEffect with the adjust_BloodMutilationRootEffect_params, which calls
     // alloc_BloodMutilationRootEffect internally.
-    const uintptr_t alloc_BloodMutilationRootEffect_caller = trigger_BloodMutilationRootEffect_func + 0x196;
-    alloc_BloodMutilationRootEffect_hooker = new CallHooker(alloc_BloodMutilationRootEffect_caller,
-							    adjust_BloodMutilationRootEffect_params_above_4);
+    alloc_BloodMutilationRootEffect_hooker = new CallHooker(trigger_BloodMutilationRootEffect_func + 0x196,
+							    adjust_BloodMutilationRootEffect_params_func - sizeof(add_r8b_0x2));
 
     // We directly detour trigger_VanishMutilationRootEffect_func function to
     // trigger_BloodMutilationRootEffect because their parameters are perfectly the same,

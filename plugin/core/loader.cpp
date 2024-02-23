@@ -18,11 +18,11 @@ using namespace std;
 using namespace ngs2::nm::util;
 
 namespace {
-  struct databin_info {
+  struct databin_directory_header {
     uint32_t item_count;
-    // We do not use this because id == idx on NGS2's databin
-    uint32_t offset_to_id_and_idx_pairs;
-    uint32_t id_and_idx_pairs_count;
+    // We do not use this because id == index on NGS2's databin
+    uint32_t offset_to_id_and_index_pairs;
+    uint32_t id_and_index_pairs_count;
     uint32_t data0xc;
   };
 
@@ -31,11 +31,11 @@ namespace {
     uint8_t path[0x10];
     uint64_t data0x18;
     uint64_t data0x20;
-    struct databin_info &databin_info;
+    struct databin_directory_header &databin_directory_header;
     // imcomplete
   };
 
-  struct data_info {
+  struct chunk_info {
     uint32_t offset_to_data;
     uint32_t data0x4;
     uint32_t rawsize;
@@ -50,7 +50,7 @@ namespace {
   load_plugins ();
 
   bool
-  load_data (ProductionPackage *thisptr, void *param2, struct data_info &di, void *out_buf);
+  load_data (ProductionPackage *thisptr, void *param2, struct chunk_info &di, void *out_buf);
 
   uint32_t
   get_rawsize (uint32_t data_id);
@@ -98,12 +98,12 @@ namespace {
   open_mod_data (uint32_t data_id);
 
   HANDLE
-  open_mod_data (struct databin_info &dbi, struct data_info &di);
+  open_mod_data (struct databin_directory_header &dbi, struct chunk_info &di);
 
   bool
-  load_data (ProductionPackage *thisptr, void *param2, struct data_info &di, void *out_buf)
+  load_data (ProductionPackage *thisptr, void *param2, struct chunk_info &di, void *out_buf)
   {
-    HANDLE hFile = open_mod_data (thisptr->databin_info, di);
+    HANDLE hFile = open_mod_data (thisptr->databin_directory_header, di);
     if (hFile == INVALID_HANDLE_VALUE)
       return load_data_hooker->get_trampoline () (thisptr, param2, di, out_buf);
 
@@ -159,7 +159,7 @@ namespace {
   }
 
   HANDLE
-  open_mod_data (struct databin_info &dbi, struct data_info &di)
+  open_mod_data (struct databin_directory_header &dbi, struct chunk_info &di)
   {
     span<uint32_t> di_ofs {
       reinterpret_cast<uint32_t *>(reinterpret_cast<uintptr_t>(&dbi) + sizeof(dbi)),
@@ -168,7 +168,7 @@ namespace {
 
     uintptr_t o = reinterpret_cast<uintptr_t>(&di) - reinterpret_cast<uintptr_t>(&dbi);
 
-    // Search the entry having the offset to the passed data_info
+    // Search the entry having the offset to the passed chunk_info
     auto i = lower_bound (di_ofs.begin (), di_ofs.end (), o);
     return open_mod_data (distance (di_ofs.begin (), i));
   }
