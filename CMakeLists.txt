@@ -10,14 +10,6 @@ set(CMAKE_OPTIMIZE_DEPENDENCIES on)
 set(CMAKE_SHARED_MODULE_SUFFIX ".dll")
 
 add_subdirectory(distormx)
+add_subdirectory(src)
 
-add_library(util util/util.cpp)
-target_include_directories(util PUBLIC util)
-target_link_libraries(util distormx)
-
-add_subdirectory(plugin/core)
-add_subdirectory(plugin/effect)
-
-install(TARGETS plugin_core DESTINATION install)
-install(TARGETS plugin_effect DESTINATION install/plugin)
 install(FILES doc/README.txt DESTINATION /)
