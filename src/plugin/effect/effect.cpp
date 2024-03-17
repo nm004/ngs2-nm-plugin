@@ -19,6 +19,7 @@
 #include "mutil.hpp"
 #include "crush.hpp"
 #include "hit.hpp"
+#include "bloodstamp.hpp"
 #include <windef.h>
 #include <cassert>
 
@@ -44,6 +45,7 @@ detail::init ()
       apply_mutil_patch ();
       apply_crush_patch ();
       apply_hit_effect_patch ();
+      apply_bloodstamp_patch ();
     }
     break;
   case ngs2::IMAGE_ID::STEAM_JP:
@@ -52,6 +54,7 @@ detail::init ()
       apply_mutil_patch ();
       apply_crush_patch ();
       apply_hit_effect_patch ();
+      apply_bloodstamp_patch ();
     }
     break;
   default:
