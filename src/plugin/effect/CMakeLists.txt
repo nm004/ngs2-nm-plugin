@@ -7,5 +7,5 @@ add_library(plugin_effect MODULE effect.cpp
 				 crush.cpp
 				 bloodstamp.cpp)
 target_link_libraries(plugin_effect util)
-set_target_properties(plugin_effect PROPERTIES PREFIX "nm" OUTPUT_NAME "effect")
 target_link_options(plugin_effect PRIVATE -static)
+set_target_properties(plugin_effect PROPERTIES PREFIX "nm" OUTPUT_NAME "effect")

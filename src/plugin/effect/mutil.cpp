@@ -1,8 +1,7 @@
 /*
- * NGS2 NM Plugin by Nozomi Miyamori is marked with CC0 1.0.
- * This file is a part of NGS2 NM Plugin.
- *
- * This module restores NG2 mutilation gore effects (e.g. Sword, Fang, etc.).
+ * NINJA GAIDEN Master Collection NM Plugin by Nozomi Miyamori
+ * is marked with CC0 1.0. This file is a part of NINJA GAIDEN
+ * Master Collection NM Plugin.
  */
 
 #include "util.hpp"
@@ -86,11 +85,11 @@ detail::update_NodeObj_visibility (struct model_node_layer *nl,
 namespace {
   namespace steam_ae {
     auto update_SUP_NodeObj_visibility_hook
-      = util::InlineHook{0x1455880, detail::update_SUP_NodeObj_visibility<0x1e38d10>};
+      = util::SimpleInlineHook{0x1455880, detail::update_SUP_NodeObj_visibility<0x1e38d10>};
   }
   namespace steam_jp {
     auto update_SUP_NodeObj_visibility_hook
-      = util::InlineHook{0x14556a0, detail::update_SUP_NodeObj_visibility<0x1e37d10>};
+      = util::SimpleInlineHook{0x14556a0, detail::update_SUP_NodeObj_visibility<0x1e37d10>};
   }
 }
 

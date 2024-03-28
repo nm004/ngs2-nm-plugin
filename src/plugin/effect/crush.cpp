@@ -79,11 +79,12 @@ detail::get_OPTscat_indices (struct model &mdl, uint32_t *out_indices)
 namespace {
   namespace steam_ae {
     auto get_OPTscat_indices_hook
-      = util::InlineHook{0x144cb00, detail::get_OPTscat_indices<0x1e38f30>};
+      = util::SimpleInlineHook{0x144cb00, detail::get_OPTscat_indices<0x1e38f30>};
   }
+
   namespace steam_jp {
     auto get_OPTscat_indices_hook
-      = util::InlineHook{0x144c8e0, detail::get_OPTscat_indices<0x1e37f30>};
+      = util::SimpleInlineHook{0x144c8e0, detail::get_OPTscat_indices<0x1e37f30>};
   }
 }
 
