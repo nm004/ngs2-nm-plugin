@@ -7,12 +7,14 @@
 #include "util.hpp"
 #include <cstdint>
 
+using namespace util;
+
 // This is for the fix of "Return to main menu" hang up bug.
 // It sees out of the index at the point.
 namespace {
   namespace detail {
     template <uintptr_t rva>
-    auto patch1 = util::Patch{rva + 3, uint8_t{7}};
+    auto patch1 = Patch{rva + 3, uint8_t{7}};
   }
   namespace steam_ae {
     auto patch1 = detail::patch1<0x13ddfa6>;
@@ -28,7 +30,7 @@ namespace {
   namespace detail {
     // jmp 0xde
     template <uintptr_t rva>
-    auto patch2 = util::Patch{rva, util::make_bytes( 0xe9, 0xde, 0x00, 0x00, 0x00 )};
+    auto patch2 = Patch{rva, make_bytes( 0xe9, 0xde, 0x00, 0x00, 0x00 )};
   }
   namespace steam_ae {
     auto patch2 = detail::patch2<0xC43060>;

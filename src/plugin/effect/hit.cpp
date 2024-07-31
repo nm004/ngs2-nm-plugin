@@ -8,6 +8,8 @@
 #include "util.hpp"
 #include "hit.hpp"
 
+using namespace util;
+
 // Credits: Fiend Busa
 // This is for the time how long the dismembered limbs remain.
 // They set 1 by default, which means limbs disappear immediately.
@@ -15,7 +17,7 @@
 namespace {
   namespace detail {
     template <uintptr_t rva>
-    auto patch1 = util::Patch{rva + 1, uint32_t{0x7fffffff}};
+    auto patch1 = Patch{rva + 1, uint32_t{0x7fffffff}};
   }
   namespace steam_ae {
     auto patch1 = detail::patch1<0x1458099>;
@@ -31,7 +33,7 @@ namespace {
 namespace {
   namespace detail {
     template <uintptr_t rva>
-    auto patch2 = util::Patch{rva + 6, uint32_t{0}};
+    auto patch2 = Patch{rva + 6, uint32_t{0}};
   }
   namespace steam_ae {
     auto patch2 = detail::patch2<0x1457f6d>;
@@ -46,7 +48,7 @@ namespace {
 namespace {
   namespace detail {
     template <uintptr_t rva>
-    auto patch3 = util::Patch{rva, float{60 * 60 * 10}};
+    auto patch3 = Patch{rva, float{60 * 60 * 10}};
   }
   namespace steam_ae {
     auto patch3 = detail::patch3<0x1907cf4>;
@@ -64,12 +66,12 @@ namespace {
     // We have chosen `and' over `xor' becase it has the same size of codes.
     // and eax, 0
     template <uintptr_t rva>
-    auto patch4 = util::Patch{rva, util::make_bytes( 0x83, 0xe0, 0x00 )};
+    auto patch4 = Patch{rva, make_bytes( 0x83, 0xe0, 0x00 )};
 
     // This makes Ryu's bow, Momiji's bow and Rachel's gatling gun attack category
     // 0x1002 which is for EFF_ArrowHitBlood.
     template <uintptr_t rva>
-    auto patch5 = util::Patch{rva, uint16_t{0x1002}};
+    auto patch5 = Patch{rva, uint16_t{0x1002}};
   }
   namespace steam_ae {
     auto patch4 = detail::patch4<0x1048888>;
@@ -94,18 +96,18 @@ namespace {
   namespace detail {
     // or ecx, 0x10000
     template<uintptr_t rva>
-    auto patch8 = util::Patch{rva-6, util::make_bytes( 0x81, 0xc9, 0x00, 0x00, 0x01, 0x00 )};
+    auto patch8 = Patch{rva-6, make_bytes( 0x81, 0xc9, 0x00, 0x00, 0x01, 0x00 )};
 
   }
   namespace steam_ae {
     auto patch8 = detail::patch8<0x1047790>;
-    auto patch9 = util::CallOffsetPatch{0x104772e, patch8.rva ()};
-    auto patch10 = util::CallOffsetPatch{0x104775d, patch8.rva ()};
+    auto patch9 = CallOffsetPatch{0x104772e, patch8.rva ()};
+    auto patch10 = CallOffsetPatch{0x104775d, patch8.rva ()};
   }
   namespace steam_jp {
     auto patch8 = detail::patch8<0x10474f0>;
-    auto patch9 = util::CallOffsetPatch{0x104748e, patch8.rva ()};
-    auto patch10 = util::CallOffsetPatch{0x10474bd, patch8.rva ()};
+    auto patch9 = CallOffsetPatch{0x104748e, patch8.rva ()};
+    auto patch10 = CallOffsetPatch{0x10474bd, patch8.rva ()};
   }
 }
 

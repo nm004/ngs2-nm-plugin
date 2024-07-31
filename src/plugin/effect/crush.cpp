@@ -11,6 +11,8 @@
 #include <cstdint>
 #include <bit>
 
+using namespace util;
+
 namespace {
   namespace detail {
     using namespace plugin::dismember;
@@ -31,7 +33,7 @@ int
 detail::get_OPTscat_indices (struct model &mdl, uint32_t *out_indices)
 {
   uintptr_t model_tmc_relation_offset_list
-    = util::base_of_image + model_tmc_relation_offset_list_rva;
+    = base_of_image + model_tmc_relation_offset_list_rva;
   uintptr_t mt_rel_ofs = std::bit_cast<uintptr_t *>
     (model_tmc_relation_offset_list)[mdl.info_idx];
 
@@ -79,11 +81,12 @@ detail::get_OPTscat_indices (struct model &mdl, uint32_t *out_indices)
 namespace {
   namespace steam_ae {
     auto get_OPTscat_indices_hook
-      = util::InlineHook{0x144cb00, detail::get_OPTscat_indices<0x1e38f30>};
+      = SimpleInlineHook{0x144cb00, detail::get_OPTscat_indices<0x1e38f30>};
   }
+
   namespace steam_jp {
     auto get_OPTscat_indices_hook
-      = util::InlineHook{0x144c8e0, detail::get_OPTscat_indices<0x1e37f30>};
+      = SimpleInlineHook{0x144c8e0, detail::get_OPTscat_indices<0x1e37f30>};
   }
 }
 
@@ -95,17 +98,17 @@ namespace {
     // xchg rdx, r8
     // xchg rcx, r9
     template <uintptr_t rva>
-    auto patch1 = util::Patch{rva-6, util::make_bytes( 0x4c, 0x87, 0xc2, 0x48, 0x87, 0xd1 )};
+    auto patch1 = Patch{rva-6, make_bytes( 0x4c, 0x87, 0xc2, 0x48, 0x87, 0xd1 )};
   }
   namespace steam_ae {
     auto patch1 = detail::patch1<0x0c0fc40>;
-    auto patch2 = util::CallOffsetPatch{0x14152e7, patch1.rva ()};
-    auto patch3 = util::CallOffsetPatch{0x1415c65, patch1.rva ()};
+    auto patch2 = CallOffsetPatch{0x14152e7, patch1.rva ()};
+    auto patch3 = CallOffsetPatch{0x1415c65, patch1.rva ()};
   }
   namespace steam_jp {
     auto patch1 = detail::patch1<0xc0fcb0>;
-    auto patch2 = util::CallOffsetPatch{0x14150b7, patch1.rva ()};
-    auto patch3 = util::CallOffsetPatch{0x1415a35, patch1.rva ()};
+    auto patch2 = CallOffsetPatch{0x14150b7, patch1.rva ()};
+    auto patch3 = CallOffsetPatch{0x1415a35, patch1.rva ()};
   }
 }
 
@@ -115,7 +118,7 @@ namespace {
   namespace detail {
     // ret
     template <uintptr_t rva>
-    auto patch4 = util::Patch{rva, uint8_t{0xc3}};
+    auto patch4 = Patch{rva, uint8_t{0xc3}};
   }
   namespace steam_ae {
     auto patch4 = detail::patch4<0x1020990>;
@@ -130,7 +133,7 @@ namespace {
 namespace {
   namespace detail {
     template <uintptr_t rva>
-    auto patch5 = util::Patch{rva, uint8_t{0xc3}};
+    auto patch5 = Patch{rva, uint8_t{0xc3}};
   }
   namespace steam_ae {
     auto patch5 = detail::patch5<0x1020360>;

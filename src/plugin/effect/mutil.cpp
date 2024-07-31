@@ -1,8 +1,7 @@
 /*
- * NGS2 NM Plugin by Nozomi Miyamori is marked with CC0 1.0.
- * This file is a part of NGS2 NM Plugin.
- *
- * This module restores NG2 mutilation gore effects (e.g. Sword, Fang, etc.).
+ * NINJA GAIDEN Master Collection NM Plugin by Nozomi Miyamori
+ * is marked with CC0 1.0. This file is a part of NINJA GAIDEN
+ * Master Collection NM Plugin.
  */
 
 #include "util.hpp"
@@ -12,6 +11,8 @@
 #include <algorithm>
 #include <bit>
 #include <tuple>
+
+using namespace util;
 
 namespace {
   namespace detail {
@@ -41,7 +42,7 @@ void
 detail::update_SUP_NodeObj_visibility (struct model &mdl, uint32_t nodeobj_id)
 {
   uintptr_t model_node_layer_list_offset_list
-    = util::base_of_image + model_node_layer_list_offset_list_rva;
+    = base_of_image + model_node_layer_list_offset_list_rva;
   // Param3 that we ignore is a pointer to somewhere in the memory.
   // The original implementation converts param3 to byte (not byte *!),
   // then the function uses it as the new visibility value! That worked
@@ -86,11 +87,11 @@ detail::update_NodeObj_visibility (struct model_node_layer *nl,
 namespace {
   namespace steam_ae {
     auto update_SUP_NodeObj_visibility_hook
-      = util::InlineHook{0x1455880, detail::update_SUP_NodeObj_visibility<0x1e38d10>};
+      = SimpleInlineHook{0x1455880, detail::update_SUP_NodeObj_visibility<0x1e38d10>};
   }
   namespace steam_jp {
     auto update_SUP_NodeObj_visibility_hook
-      = util::InlineHook{0x14556a0, detail::update_SUP_NodeObj_visibility<0x1e37d10>};
+      = SimpleInlineHook{0x14556a0, detail::update_SUP_NodeObj_visibility<0x1e37d10>};
   }
 }
 
@@ -100,10 +101,10 @@ namespace {
 // even the flow of the function looks totally same.
 namespace {
   namespace steam_ae {
-    auto patch1 = util::CallOffsetPatch{0x145866a, 0x1220060};
+    auto patch1 = CallOffsetPatch{0x145866a, 0x1220060};
   }
   namespace steam_jp {
-    auto patch1 = util::CallOffsetPatch{0x14584f5, 0x121fde0};
+    auto patch1 = CallOffsetPatch{0x14584f5, 0x121fde0};
   }
 }
 
@@ -119,15 +120,15 @@ namespace {
   namespace detail {
     // add r8b, 0x02
     template <uintptr_t rva> auto
-    patch2 = util::Patch{rva - 4, util::make_bytes( 0x41, 0x80, 0xc0, 0x02 )};
+    patch2 = Patch{rva - 4, make_bytes( 0x41, 0x80, 0xc0, 0x02 )};
   }
   namespace steam_ae {
     auto patch2 = detail::patch2<0x1206e30>;
-    auto patch3 = util::CallOffsetPatch{0x12201f6, patch2.rva ()};
+    auto patch3 = CallOffsetPatch{0x12201f6, patch2.rva ()};
   }
   namespace steam_jp {
     auto patch2 = detail::patch2<0x1206b90>;
-    auto patch3 = util::CallOffsetPatch{0x1206d26, patch2.rva ()};
+    auto patch3 = CallOffsetPatch{0x1206d26, patch2.rva ()};
   }
 }
 
@@ -137,10 +138,10 @@ namespace {
 // perfectly the same.
 namespace {
   namespace steam_ae {
-    auto patch4 = util::CallOffsetPatch{0x1458761, 0x121fe20};
+    auto patch4 = CallOffsetPatch{0x1458761, 0x121fe20};
   }
   namespace steam_jp {
-    auto patch4 = util::CallOffsetPatch{0x14585f8, 0x121fba0};
+    auto patch4 = CallOffsetPatch{0x14585f8, 0x121fba0};
   }
 }
 
@@ -148,33 +149,33 @@ namespace {
 // which can be found in the Asia version of the game.
 namespace {
   namespace steam_jp {
-    constinit const auto NOP5 = util::make_bytes(
+    constinit const auto NOP5 = make_bytes(
       0x0F, 0x1F, 0x44, 0x00, 0x00
     );
-    constinit const auto NOP7 = util::make_bytes(
+    constinit const auto NOP7 = make_bytes(
       0x0f, 0x1f, 0x80, 0x00, 0x00, 0x00, 0x00
     );
-    constinit const auto NOP8 = util::make_bytes(
+    constinit const auto NOP8 = make_bytes(
       0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00
     );
-    constinit const auto NOP9 = util::make_bytes(
+    constinit const auto NOP9 = make_bytes(
       0x66, 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00
     );
 
     // for crush
-    auto patch_jp1 = util::Patch{0x1457ef0, util::concat(NOP7, NOP7)};
+    auto patch_jp1 = Patch{0x1457ef0, concat(NOP7, NOP7)};
     // for mutil
-    auto patch_jp2 = util::Patch{0x14583e5, util::concat(NOP7, NOP7)};
+    auto patch_jp2 = Patch{0x14583e5, concat(NOP7, NOP7)};
 
     // In order to prevent the head from getting back to his body
-    auto patch_jp3 = util::Patch{0x1456dcc, util::concat(NOP8, NOP8, NOP8)};
-    auto patch_jp4 = util::Patch{0x1456e71, util::concat(NOP7, NOP8, NOP8)};
-    auto patch_jp5 = util::Patch{0x145e463, util::concat(NOP8, NOP8)};
+    auto patch_jp3 = Patch{0x1456dcc, concat(NOP8, NOP8, NOP8)};
+    auto patch_jp4 = Patch{0x1456e71, concat(NOP7, NOP8, NOP8)};
+    auto patch_jp5 = Patch{0x145e463, concat(NOP8, NOP8)};
 
     // The following is not required but for the completness.
-    auto patch_jp6 = util::Patch{0x145E824, util::concat(NOP8, NOP8, NOP9)};
-    auto patch_jp7 = util::Patch{0xc31190, util::concat(NOP5, NOP7, NOP7)};
-    auto patch_jp8 = util::Patch{0x14cff5e, util::concat(NOP7, NOP7, NOP7, NOP7)};
+    auto patch_jp6 = Patch{0x145E824, concat(NOP8, NOP8, NOP9)};
+    auto patch_jp7 = Patch{0xc31190, concat(NOP5, NOP7, NOP7)};
+    auto patch_jp8 = Patch{0x14cff5e, concat(NOP7, NOP7, NOP7, NOP7)};
   }
 }
 

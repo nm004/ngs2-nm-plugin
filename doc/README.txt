@@ -58,6 +58,7 @@ Known bugs
 
  - Crushing the last enemy may make events delayed (e.g. doors open in a few secs,
    but not instantly)
+ - Robots drops bloodstains instead of oil stains
 
 License
 ------------
@@ -87,3 +88,4 @@ software. This mod could not be exist without them.
  - Fiend Busa
  - enhuhu
  - Guilty
+ - ZANGETSU

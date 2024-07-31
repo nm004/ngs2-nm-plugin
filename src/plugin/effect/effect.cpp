@@ -1,6 +1,7 @@
 /*
- * NGS2 NM Plugin by Nozomi Miyamori is marked with CC0 1.0.
- * This file is a part of NGS2 NM Plugin.
+ * NINJA GAIDEN Master Collection NM Plugin by Nozomi Miyamori
+ * is marked with CC0 1.0. This file is a part of NINJA GAIDEN
+ * Master Collection NM Plugin.
  */
 
 #define WIN32_LEAN_AND_MEAN
@@ -19,12 +20,15 @@
 #include "mutil.hpp"
 #include "crush.hpp"
 #include "hit.hpp"
+#include "bloodstamp.hpp"
 #include <windef.h>
 #include <cassert>
 
 #if !defined(NDEBUG)
 #include <iostream>
 #endif
+
+using namespace util;
 
 namespace {
   namespace detail {
@@ -35,23 +39,24 @@ namespace {
 void
 detail::init ()
 {
-  using namespace util;
-  switch (ngs2::image_id)
+  switch (image_id)
   {
-  case ngs2::IMAGE_ID::STEAM_AE:
+  case IMAGE_ID::NGS2_STEAM_AE:
     {
       using namespace plugin::steam_ae;
       apply_mutil_patch ();
       apply_crush_patch ();
       apply_hit_effect_patch ();
+      apply_bloodstamp_patch ();
     }
     break;
-  case ngs2::IMAGE_ID::STEAM_JP:
+  case IMAGE_ID::NGS2_STEAM_JP:
     {
       using namespace plugin::steam_jp;
       apply_mutil_patch ();
       apply_crush_patch ();
       apply_hit_effect_patch ();
+      apply_bloodstamp_patch ();
     }
     break;
   default:
@@ -71,8 +76,6 @@ DllMain (HINSTANCE hinstDLL,
     {
     case DLL_PROCESS_ATTACH:
       detail::init ();
-      break;
-    case DLL_PROCESS_DETACH:
       break;
     default:
       break;

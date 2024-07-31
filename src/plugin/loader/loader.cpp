@@ -1,11 +1,20 @@
 /*
- * NGS2 NM Plugin by Nozomi Miyamori is marked with CC0 1.0.
- * This file is a part of NGS2 NM Plugin.
- *
- * This module loads plugin and data for the game.
+ * NINJA GAIDEN Master Collection NM Plugin by Nozomi Miyamori
+ * is marked with CC0 1.0. This file is a part of NINJA GAIDEN
+ * Master Collection NM Plugin.
  */
 
 #define WIN32_LEAN_AND_MEAN
+
+#if defined(__MINGW32__)
+#  if defined(NDEBUG)
+#    define DLLEXPORT __declspec (dllexport)
+#  else
+#    define DLLEXPORT
+#  endif
+#else
+#  define DLLEXPORT __declspec (dllexport)
+#endif
 
 #include "loader.hpp"
 #include "util.hpp"
@@ -15,6 +24,12 @@
 #include <cstdint>
 #include <algorithm>
 #include <span>
+
+#if !defined(NDEBUG)
+#include <iostream>
+#endif
+
+using namespace util;
 
 namespace {
   namespace detail {
@@ -46,13 +61,15 @@ namespace {
       uint8_t data0x17;
     };
 
+    void init ();
+
     uint32_t get_chunk_size (uint32_t);
     bool load_data (ProductionPackage *, void *, struct chunk_info &, void *);
     HANDLE open_mod_data (uint32_t);
     HANDLE open_mod_data (struct databin_directory_header &, struct chunk_info &);
 
-    util::Hook<decltype(get_chunk_size) *> *get_chunk_size_hook;
-    util::Hook<decltype(load_data) *> *load_data_hook;
+    InlineHook<decltype(get_chunk_size) *> *get_chunk_size_hook;
+    VFPHook<decltype(load_data) *> *load_data_hook;
     void attach_hooks ();
   }
 }
@@ -61,7 +78,7 @@ namespace {
   namespace detail2 {
     template <uintptr_t rva>
     auto get_chunk_size_hook
-      = util::InlineHook<decltype(detail::get_chunk_size) *>
+      = InlineHook<decltype(detail::get_chunk_size) *>
 	{rva, detail::get_chunk_size};
   }
   namespace steam_ae {
@@ -76,7 +93,7 @@ namespace {
   namespace detail2 {
     template <uintptr_t rva>
     auto load_data_hook
-      = util::VFPHook<decltype(detail::load_data) *>
+      = VFPHook<decltype(detail::load_data) *>
 	{rva, detail::load_data};
   }
   namespace steam_ae {
@@ -185,4 +202,47 @@ detail::open_mod_data (struct databin_directory_header &dbi, struct chunk_info &
   // Search the entry having the offset to the passed chunk_info
   auto i = lower_bound (di_ofs.begin (), di_ofs.end (), o);
   return open_mod_data (distance (di_ofs.begin (), i));
+}
+
+void
+detail::init ()
+{
+  using namespace std;
+
+  assert((cout << "INIT: loader" << endl, 1));
+
+  switch (image_id)
+    {
+    case IMAGE_ID::NGS2_STEAM_AE:
+      {
+	using namespace plugin::steam_ae;
+	apply_loader_patch ();
+      }
+      break;
+    case IMAGE_ID::NGS2_STEAM_JP:
+      {
+	using namespace plugin::steam_jp;
+	apply_loader_patch ();
+      }
+      break;
+    }
+}
+
+extern "C" WINAPI DLLEXPORT BOOL
+DllMain (HINSTANCE hinstDLL,
+	 DWORD fdwReason,
+	 LPVOID lpvReserved)
+{
+  using namespace std;
+  assert ((cout << "INIT: loader" << endl, 1));
+
+  switch (fdwReason)
+    {
+    case DLL_PROCESS_ATTACH:
+      detail::init ();
+      break;
+    default:
+      break;
+    }
+  return TRUE;
 }

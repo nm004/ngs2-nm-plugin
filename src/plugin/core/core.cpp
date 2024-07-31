@@ -17,7 +17,6 @@
 
 #include "util.hpp"
 #include "qol.hpp"
-#include "loader.hpp"
 #include <windef.h>
 #include <winbase.h>
 #include <fileapi.h>
@@ -28,6 +27,8 @@
 #if !defined(NDEBUG)
 #include <iostream>
 #endif
+
+using namespace util;
 
 namespace plugin {
   namespace steam_ae {
@@ -42,24 +43,24 @@ namespace {
   namespace detail {
     void load_plugins ();
     BOOL init (LPCWSTR);
- 
+
     // This is needed to keep SteamDRM from wrongly decoding our
     // codes. We inject our codes after the decoding phase by hooking
     // SetCurrentDirectoryW.
-    auto SetCurrentDirectoryW_hook = util::InlineHook{0, SetCurrentDirectoryW, init};
+    auto SetCurrentDirectoryW_hook = SimpleInlineHook{0, SetCurrentDirectoryW, init};
 
     // check_dlls returns true if the number of loaded modules (exe + dlls)
     // in the executable's directory is equal to 2. Otherwise, it returns false.
     // We make it always return true.
     bool check_dlls ();
-    util::Hook<> *check_dlls_hook;
+    SimpleInlineHook *check_dlls_hook;
   }
 }
 
 namespace {
   namespace detail2 {
     template <uintptr_t rva>
-    auto check_dlls_hook = util::InlineHook{rva, detail::check_dlls};
+    auto check_dlls_hook = SimpleInlineHook{rva, detail::check_dlls};
   }
   namespace steam_ae {
     auto check_dlls_hook = detail2::check_dlls_hook<0xb5c460>;
@@ -105,29 +106,26 @@ BOOL
 detail::init (LPCWSTR lpPathName)
 {
   using namespace std;
-  using namespace util;
   assert((cout << "INIT: core" << endl, 1));
 
   SetCurrentDirectoryW_hook.detach ();
   BOOL r = SetCurrentDirectoryW (lpPathName);
   load_plugins ();
 
-  switch (ngs2::image_id)
+  switch (image_id)
     {
-    case ngs2::IMAGE_ID::STEAM_AE:
+    case IMAGE_ID::NGS2_STEAM_AE:
       {
 	using namespace plugin::steam_ae;
 	apply_core_patch ();
 	apply_qol_patch ();
-	apply_loader_patch ();
       }
       break;
-    case ngs2::IMAGE_ID::STEAM_JP:
+    case IMAGE_ID::NGS2_STEAM_JP:
       {
 	using namespace plugin::steam_jp;
 	apply_core_patch ();
 	apply_qol_patch ();
-	apply_loader_patch ();
       }
       break;
     }
@@ -158,7 +156,6 @@ plugin::steam_jp::apply_core_patch ()
   check_dlls_hook.attach ();
 }
 
-
 extern "C" WINAPI DLLEXPORT BOOL
 DllMain (HINSTANCE hinstDLL,
 	 DWORD fdwReason,
@@ -167,7 +164,7 @@ DllMain (HINSTANCE hinstDLL,
   switch (fdwReason)
     {
     case DLL_PROCESS_ATTACH:
-      detail::SetCurrentDirectoryW_hook.attach();
+      detail::SetCurrentDirectoryW_hook.attach ();
       break;
     default:
       break;
