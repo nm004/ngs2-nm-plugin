@@ -64,7 +64,7 @@ detail::init ()
   }
 }
 
-extern "C" WINAPI DLLEXPORT BOOL
+extern "C" DLLEXPORT BOOL
 DllMain (HINSTANCE hinstDLL,
 	 DWORD fdwReason,
 	 LPVOID lpvReserved)

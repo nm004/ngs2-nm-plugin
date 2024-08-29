@@ -8,7 +8,7 @@
 #define NGMC_NM_UTIL_HPP
 
 #include "distormx.h"
-#include <windef.h>
+#include <windows.h>
 #include <memoryapi.h>
 #include <processthreadsapi.h>
 #include <type_traits>
@@ -55,8 +55,9 @@ namespace util {
 
     // for Japan and East Asia
     NGS2_STEAM_JP = 0x179c000,
-  } extern const image_id;
+  };
 
+  extern const IMAGE_ID image_id;
   extern const uintptr_t base_of_image;
 }
 

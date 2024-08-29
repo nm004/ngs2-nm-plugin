@@ -16,7 +16,6 @@
 #  define DLLEXPORT __declspec (dllexport)
 #endif
 
-#include "loader.hpp"
 #include "util.hpp"
 #include <winbase.h>
 #include <strsafe.h>
@@ -32,105 +31,55 @@
 using namespace util;
 
 namespace {
-  namespace detail {
-    struct databin_directory_header {
-      uint32_t item_count;
-      // We do not use this because id == index on NGS2's databin
-      uint32_t offset_to_id_and_index_pairs;
-      uint32_t id_and_index_pairs_count;
-      uint32_t data0xc;
-    };
 
-    struct ProductionPackage {
-      uintptr_t vfp;
-      uint8_t path[0x10];
-      uint64_t data0x18;
-      uint64_t data0x20;
-      struct databin_directory_header &databin_directory_header;
-      // imcomplete
-    };
+struct databin_directory_header {
+  uint32_t item_count;
+  // We do not use this because id == index on NGS2's databin
+  uint32_t offset_to_id_and_index_pairs;
+  uint32_t id_and_index_pairs_count;
+  uint32_t data0xc;
+};
 
-    struct chunk_info {
-      uint32_t offset_to_data;
-      uint32_t data0x4;
-      uint32_t size;
-      uint32_t compressed_size;
-      uint32_t data0x10;
-      uint16_t data0x14;
-      uint8_t data0x16;
-      uint8_t data0x17;
-    };
+struct ProductionPackage {
+  uintptr_t vfp;
+  uint8_t path[0x10];
+  uint64_t data0x18;
+  uint64_t data0x20;
+  struct databin_directory_header &databin_directory_header;
+  // imcomplete
+};
 
-    void init ();
+struct chunk_info {
+  uint32_t offset_to_data;
+  uint32_t data0x4;
+  uint32_t size;
+  uint32_t compressed_size;
+  uint32_t data0x10;
+  uint16_t data0x14;
+  uint8_t data0x16;
+  uint8_t data0x17;
+};
 
-    uint32_t get_chunk_size (uint32_t);
-    bool load_data (ProductionPackage *, void *, struct chunk_info &, void *);
-    HANDLE open_mod_data (uint32_t);
-    HANDLE open_mod_data (struct databin_directory_header &, struct chunk_info &);
+void init ();
 
-    InlineHook<decltype(get_chunk_size) *> *get_chunk_size_hook;
-    VFPHook<decltype(load_data) *> *load_data_hook;
-    void attach_hooks ();
-  }
-}
+uint32_t get_chunk_size (uint32_t);
+bool load_data (ProductionPackage *, void *, struct chunk_info &, void *);
+HANDLE open_mod_data (uint32_t);
+HANDLE open_mod_data (struct databin_directory_header &, struct chunk_info &);
 
-namespace {
-  namespace detail2 {
-    template <uintptr_t rva>
-    auto get_chunk_size_hook
-      = InlineHook<decltype(detail::get_chunk_size) *>
-	{rva, detail::get_chunk_size};
-  }
-  namespace steam_ae {
-    auto get_chunk_size_hook = detail2::get_chunk_size_hook<0x13ab5e0>;
-  }
-  namespace steam_jp {
-    auto get_chunk_size_hook = detail2::get_chunk_size_hook<0x13ab3b0>;
-  }
-}
+InlineHook<decltype(get_chunk_size) *> *get_chunk_size_hook;
+VFPHook<decltype(load_data) *> *load_data_hook;
 
-namespace {
-  namespace detail2 {
-    template <uintptr_t rva>
-    auto load_data_hook
-      = VFPHook<decltype(detail::load_data) *>
-	{rva, detail::load_data};
-  }
-  namespace steam_ae {
-    auto load_data_hook = detail2::load_data_hook<0x18ef6f0>;
-  }
-  namespace steam_jp {
-    auto load_data_hook = detail2::load_data_hook<0x18ee6f0>;
-  }
-}
+template <uintptr_t rva>
+auto get_chunk_size_hook_v
+  = InlineHook<decltype(get_chunk_size) *> {rva, get_chunk_size};
 
-void
-detail::attach_hooks ()
-{
-  get_chunk_size_hook->attach ();
-  load_data_hook->attach ();
-}
-
-void
-plugin::steam_ae::apply_loader_patch ()
-{
-  using namespace ::steam_ae;
-  detail::get_chunk_size_hook = &get_chunk_size_hook;
-  detail::load_data_hook = &load_data_hook;
-  detail::attach_hooks ();
-}
-
-void
-plugin::steam_jp::apply_loader_patch ()
-{
-  using namespace ::steam_jp;
-  detail::get_chunk_size_hook = &get_chunk_size_hook;
-  detail::load_data_hook = &load_data_hook;
-  detail::attach_hooks ();
-}
+template <uintptr_t rva>
+auto load_data_hook_v
+  = VFPHook<decltype(load_data) *> {rva, load_data};
 
 bool
-detail::load_data (ProductionPackage *thisptr, void *param2, struct chunk_info &di, void *out_buf)
+load_data (ProductionPackage *thisptr, void *param2, struct chunk_info &di, void *out_buf)
 {
   HANDLE hFile = open_mod_data (thisptr->databin_directory_header, di);
   if (hFile == INVALID_HANDLE_VALUE)
@@ -146,7 +95,7 @@ detail::load_data (ProductionPackage *thisptr, void *param2, struct chunk_info &
 }
 
 uint32_t
-detail::get_chunk_size (uint32_t data_id)
+get_chunk_size (uint32_t data_id)
 {
   HANDLE hFile = open_mod_data (data_id);
   if (hFile == INVALID_HANDLE_VALUE)
@@ -159,7 +108,7 @@ detail::get_chunk_size (uint32_t data_id)
 }
 
 HANDLE
-detail::open_mod_data (uint32_t data_id)
+open_mod_data (uint32_t data_id)
 {
   // 16 is sufficiently enough for id string since the
   // number of items in databin is below 10000.
@@ -188,7 +137,7 @@ detail::open_mod_data (uint32_t data_id)
 }
 
 HANDLE
-detail::open_mod_data (struct databin_directory_header &dbi, struct chunk_info &di)
+open_mod_data (struct databin_directory_header &dbi, struct chunk_info &di)
 { 
   using namespace std;
 
@@ -204,8 +153,36 @@ detail::open_mod_data (struct databin_directory_header &dbi, struct chunk_info &
   return open_mod_data (distance (di_ofs.begin (), i));
 }
 
+namespace steam_ae {
+  auto get_chunk_size_hook = get_chunk_size_hook_v<0x13ab5e0>;
+  auto load_data_hook = load_data_hook_v<0x18ef6f0>;
+
+  void
+  apply_loader_patch ()
+  {
+    ::get_chunk_size_hook = &get_chunk_size_hook;
+    ::load_data_hook = &load_data_hook;
+    get_chunk_size_hook.attach ();
+    load_data_hook.attach ();
+  }
+}
+
+namespace steam_jp {
+  auto get_chunk_size_hook = get_chunk_size_hook_v<0x13ab3b0>;
+  auto load_data_hook = load_data_hook_v<0x18ee6f0>;
+
+  void
+  apply_loader_patch ()
+  {
+    ::get_chunk_size_hook = &get_chunk_size_hook;
+    ::load_data_hook = &load_data_hook;
+    get_chunk_size_hook.attach ();
+    load_data_hook.attach ();
+  }
+}
+
 void
-detail::init ()
+init ()
 {
   using namespace std;
 
@@ -215,20 +192,22 @@ detail::init ()
     {
     case IMAGE_ID::NGS2_STEAM_AE:
       {
-	using namespace plugin::steam_ae;
+	using namespace steam_ae;
 	apply_loader_patch ();
       }
       break;
     case IMAGE_ID::NGS2_STEAM_JP:
       {
-	using namespace plugin::steam_jp;
+	using namespace steam_jp;
 	apply_loader_patch ();
       }
       break;
     }
 }
 
-extern "C" WINAPI DLLEXPORT BOOL
+} // namespace
+
+extern "C" DLLEXPORT BOOL
 DllMain (HINSTANCE hinstDLL,
 	 DWORD fdwReason,
 	 LPVOID lpvReserved)
@@ -239,7 +218,7 @@ DllMain (HINSTANCE hinstDLL,
   switch (fdwReason)
     {
     case DLL_PROCESS_ATTACH:
-      detail::init ();
+      init ();
       break;
     default:
       break;
