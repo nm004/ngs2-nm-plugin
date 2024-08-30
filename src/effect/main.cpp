@@ -4,8 +4,6 @@
  * Master Collection NM Plugin.
  */
 
-#define WIN32_LEAN_AND_MEAN
-
 #if defined(__MINGW32__)
 #  if defined(NDEBUG)
 #    define DLLEXPORT __declspec (dllexport)
@@ -16,12 +14,14 @@
 #  define DLLEXPORT __declspec (dllexport)
 #endif
 
+#define WIN32_LEAN_AND_MEAN
+
 #include "util.hpp"
 #include "mutil.hpp"
 #include "crush.hpp"
 #include "hit.hpp"
 #include "bloodstamp.hpp"
-#include <windef.h>
+#include <windows.h>
 #include <cassert>
 
 #if !defined(NDEBUG)
@@ -31,38 +31,22 @@
 using namespace util;
 
 namespace {
-  namespace detail {
-    void init ();
-  }
-}
 
 void
-detail::init ()
+init ()
 {
-  switch (image_id)
-  {
-  case IMAGE_ID::NGS2_STEAM_AE:
+  assert ((cout << "INIT: effect" << endl, 1));
+
+  switch (get_image_id ())
     {
-      using namespace plugin::steam_ae;
-      apply_mutil_patch ();
-      apply_crush_patch ();
-      apply_hit_effect_patch ();
-      apply_bloodstamp_patch ();
+    case ImageId::NGS2SteamAE:
+      break;
+    case ImageId::NGS2SteamJP:
+      break;
     }
-    break;
-  case IMAGE_ID::NGS2_STEAM_JP:
-    {
-      using namespace plugin::steam_jp;
-      apply_mutil_patch ();
-      apply_crush_patch ();
-      apply_hit_effect_patch ();
-      apply_bloodstamp_patch ();
-    }
-    break;
-  default:
-    break;
-  }
 }
+
+} // namespace
 
 extern "C" DLLEXPORT BOOL
 DllMain (HINSTANCE hinstDLL,
@@ -70,7 +54,6 @@ DllMain (HINSTANCE hinstDLL,
 	 LPVOID lpvReserved)
 {
   using namespace std;
-  assert ((cout << "INIT: effect" << endl, 1));
 
   switch (fdwReason)
     {

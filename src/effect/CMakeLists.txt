@@ -2,4 +2,8 @@
 # is marked with CC0 1.0. This file is a part of NINJA GAIDEN
 # Master Collection NM Plugin.
 
-add_library(steam-bugfixes MODULE main.cpp)
+add_library(effect MODULE main.cpp
+			  hit.cpp
+			  mutil.cpp
+			  crush.cpp
+			  bloodstamp.cpp)
