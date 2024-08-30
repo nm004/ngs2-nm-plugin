@@ -4,8 +4,6 @@
  * Master Collection NM Plugin.
  */
 
-#define WIN32_LEAN_AND_MEAN
-
 #if defined(__MINGW32__)
 #  if defined(NDEBUG)
 #    define DLLEXPORT __declspec (dllexport)
@@ -15,6 +13,8 @@
 #else
 #  define DLLEXPORT __declspec (dllexport)
 #endif
+
+#define WIN32_LEAN_AND_MEAN
 
 #include "util.hpp"
 #include <windows.h>
@@ -28,7 +28,7 @@
 #include <iostream>
 #endif
 
-using namespace util;
+using namespace nm::util;
 
 namespace {
 
@@ -60,23 +60,13 @@ struct chunk_info {
   uint8_t data0x17;
 };
 
-void init ();
-
 uint32_t get_chunk_size (uint32_t);
 bool load_data (ProductionPackage *, void *, struct chunk_info &, void *);
 HANDLE open_mod_data (uint32_t);
 HANDLE open_mod_data (struct databin_directory_header &, struct chunk_info &);
 
-InlineHook<decltype(get_chunk_size) *> *get_chunk_size_hook;
-VFPHook<decltype(load_data) *> *load_data_hook;
-
-template <uintptr_t rva>
-auto get_chunk_size_hook_v
-  = InlineHook<decltype(get_chunk_size) *> {rva, get_chunk_size};
-
-template <uintptr_t rva>
-auto load_data_hook_v
-  = VFPHook<decltype(load_data) *> {rva, load_data};
+InlineHook<decltype (get_chunk_size) *> *get_chunk_size_hook;
+VFPHook<decltype (load_data) *> *load_data_hook;
 
 bool
 load_data (ProductionPackage *thisptr, void *param2, struct chunk_info &di, void *out_buf)
@@ -89,7 +79,7 @@ load_data (ProductionPackage *thisptr, void *param2, struct chunk_info &di, void
   GetFileSizeEx (hFile, &fsize);
 
   DWORD nBytesRead;
-  BOOL r = ReadFile (hFile, out_buf, fsize.u.LowPart, &nBytesRead, nullptr);
+  BOOL r {ReadFile (hFile, out_buf, fsize.u.LowPart, &nBytesRead, nullptr)};
   CloseHandle (hFile);
   return r;
 }
@@ -113,7 +103,7 @@ open_mod_data (uint32_t data_id)
   // 16 is sufficiently enough for id string since the
   // number of items in databin is below 10000.
   TCHAR name[16];
-  StringCbPrintf (name, sizeof(name), TEXT("%05d.dat"), data_id);
+  StringCbPrintf (name, sizeof (name), TEXT ("%05d.dat"), data_id);
 
   const TCHAR *mod_dirs[] = {
     TEXT(""),
@@ -125,8 +115,8 @@ open_mod_data (uint32_t data_id)
   for (auto &i : mod_dirs)
     {
       TCHAR path[MAX_PATH];
-      StringCbCopy (path, sizeof(path), i);
-      StringCbCat (path, sizeof(path), name);
+      StringCbCopy (path, sizeof (path), i);
+      StringCbCat (path, sizeof (path), name);
 
       hFile = CreateFile (path, GENERIC_READ, 0, nullptr, OPEN_EXISTING,
 			  FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -142,43 +132,15 @@ open_mod_data (struct databin_directory_header &dbi, struct chunk_info &di)
   using namespace std;
 
   span<uint32_t> di_ofs {
-    reinterpret_cast<uint32_t *>(reinterpret_cast<uintptr_t>(&dbi) + sizeof(dbi)),
+    reinterpret_cast<uint32_t *> (reinterpret_cast<uintptr_t> (&dbi) + sizeof (dbi)),
     dbi.item_count
   };
 
-  uintptr_t o = reinterpret_cast<uintptr_t>(&di) - reinterpret_cast<uintptr_t>(&dbi);
+  uintptr_t o = reinterpret_cast<uintptr_t> (&di) - reinterpret_cast<uintptr_t> (&dbi);
 
   // Search the entry having the offset to the passed chunk_info
-  auto i = lower_bound (di_ofs.begin (), di_ofs.end (), o);
+  auto i {lower_bound (di_ofs.begin (), di_ofs.end (), o)};
   return open_mod_data (distance (di_ofs.begin (), i));
-}
-
-namespace steam_ae {
-  auto get_chunk_size_hook = get_chunk_size_hook_v<0x13ab5e0>;
-  auto load_data_hook = load_data_hook_v<0x18ef6f0>;
-
-  void
-  apply_loader_patch ()
-  {
-    ::get_chunk_size_hook = &get_chunk_size_hook;
-    ::load_data_hook = &load_data_hook;
-    get_chunk_size_hook.attach ();
-    load_data_hook.attach ();
-  }
-}
-
-namespace steam_jp {
-  auto get_chunk_size_hook = get_chunk_size_hook_v<0x13ab3b0>;
-  auto load_data_hook = load_data_hook_v<0x18ee6f0>;
-
-  void
-  apply_loader_patch ()
-  {
-    ::get_chunk_size_hook = &get_chunk_size_hook;
-    ::load_data_hook = &load_data_hook;
-    get_chunk_size_hook.attach ();
-    load_data_hook.attach ();
-  }
 }
 
 void
@@ -188,19 +150,15 @@ init ()
 
   assert((cout << "INIT: loader" << endl, 1));
 
-  switch (image_id)
+  switch (get_image_id ())
     {
-    case IMAGE_ID::NGS2_STEAM_AE:
-      {
-	using namespace steam_ae;
-	apply_loader_patch ();
-      }
+    case ImageId::NGS2SteamAE:
+      get_chunk_size_hook = new InlineHook {0x13ab5e0, get_chunk_size};
+      load_data_hook = new VFPHook {0x18ef6f0, load_data};
       break;
-    case IMAGE_ID::NGS2_STEAM_JP:
-      {
-	using namespace steam_jp;
-	apply_loader_patch ();
-      }
+    case ImageId::NGS2SteamJP:
+      get_chunk_size_hook = new InlineHook {0x13ab3b0, get_chunk_size};
+      load_data_hook = new VFPHook {0x18ee6f0, load_data};
       break;
     }
 }

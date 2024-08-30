@@ -2,7 +2,7 @@
 # is marked with CC0 1.0. This file is a part of NINJA GAIDEN
 # Master Collection NM Plugin.
 
-add_library(plugin_core MODULE core.cpp)
+add_library(plugin_core MODULE main.cpp)
 target_link_libraries(plugin_core util)
 target_link_options(plugin_core PRIVATE -static)
 set_target_properties(plugin_core PROPERTIES

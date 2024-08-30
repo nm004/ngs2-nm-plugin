@@ -17,9 +17,10 @@ target_link_libraries(util INTERFACE distormx)
 
 add_subdirectory(src/core)
 add_subdirectory(src/steam-bugfixes)
+add_subdirectory(src/loader)
 
 install(TARGETS plugin_core DESTINATION install)
-install(TARGETS plugin_steam_bugfixes DESTINATION install)
-#install(TARGETS plugin_loader DESTINATION install/plugin)
+install(TARGETS plugin_steam_bugfixes DESTINATION install/plugin)
+install(TARGETS plugin_loader DESTINATION install/plugin)
 #install(TARGETS plugin_effect DESTINATION install/plugin)
 install(FILES doc/README.txt DESTINATION /)

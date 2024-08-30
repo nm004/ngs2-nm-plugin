@@ -3,8 +3,6 @@
  * This file is a part of NGS2 NM Plugin.
  */
 
-#define WIN32_LEAN_AND_MEAN
-
 #if defined(__MINGW32__)
 #  if defined(NDEBUG)
 #    define DLLEXPORT __declspec (dllexport)
@@ -14,6 +12,8 @@
 #else
 #  define DLLEXPORT __declspec (dllexport)
 #endif
+
+#define WIN32_LEAN_AND_MEAN
 
 #include "util.hpp"
 #include <windows.h>
@@ -36,7 +36,7 @@ BOOL init (LPCWSTR);
 // This is needed to keep SteamDRM from wrongly decoding our
 // codes. We inject our codes after the decoding phase by hooking
 // SetCurrentDirectoryW.
-auto SetCurrentDirectoryW_hook = new SimpleInlineHook{0, SetCurrentDirectoryW, init};
+auto SetCurrentDirectoryW_hook = new SimpleInlineHook {0, SetCurrentDirectoryW, init};
 
 // check_dlls returns true if the number of loaded modules (exe + dlls)
 // in the executable's directory is equal to 2. Otherwise, it returns false.
@@ -64,9 +64,9 @@ load_plugins ()
     {
       // Main thread sets the current directory where the executable sits.
       TCHAR path[MAX_PATH];
-      StringCbCopy (path, sizeof(path), i);
+      StringCbCopy (path, sizeof path, i);
       SetDllDirectory (path);
-      StringCbCat (path, sizeof(path), TEXT("*.dll"));
+      StringCbCat (path, sizeof path, TEXT ("*.dll"));
 
       WIN32_FIND_DATA findFileData;
       HANDLE hFindFile = FindFirstFile (path, &findFileData);
@@ -96,10 +96,10 @@ init (LPCWSTR lpPathName)
   switch (get_image_id ())
     {
     case ImageId::NGS2SteamAE:
-      ::check_dlls_hook = new SimpleInlineHook{0xb5c460, check_dlls};
+      check_dlls_hook = new SimpleInlineHook {0xb5c460, check_dlls};
       break;
     case ImageId::NGS2SteamJP:
-      ::check_dlls_hook = new SimpleInlineHook{0xb5c4b0, check_dlls};
+      check_dlls_hook = new SimpleInlineHook {0xb5c4b0, check_dlls};
       break;
     }
 

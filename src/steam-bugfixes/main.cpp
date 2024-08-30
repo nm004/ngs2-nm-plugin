@@ -3,8 +3,6 @@
  * This file is a part of NGS2 NM Plugin.
  */
 
-#define WIN32_LEAN_AND_MEAN
-
 #if defined(__MINGW32__)
 #  if defined(NDEBUG)
 #    define DLLEXPORT __declspec (dllexport)
@@ -14,6 +12,8 @@
 #else
 #  define DLLEXPORT __declspec (dllexport)
 #endif
+
+#define WIN32_LEAN_AND_MEAN
 
 #include "util.hpp"
 #include <windows.h>
@@ -44,17 +44,17 @@ init ()
     case ImageId::NGS2SteamAE:
       // This is for the fix of "Return to main menu" hang up bug.
       // It sees out of the index at the point.
-      patch1 = new Patch{0x13ddfa6 + 3, uint8_t{7}};
+      patch1 = new Patch {0x13ddfa6 + 3, uint8_t {7}};
 
       // This is for the fix of the never terminating game bug.
       // It enters dead lock at the point.
       // jmp 0xde
-      patch2 = new Patch{0xC43060, make_bytes( 0xe9, 0xde, 0x00, 0x00, 0x00 )};
+      patch2 = new Patch {0xC43060, make_bytes( 0xe9, 0xde, 0x00, 0x00, 0x00 )};
       break;
 
     case ImageId::NGS2SteamJP:
-      patch1 = new Patch{0x13ddd76 + 3, uint8_t{7}};
-      patch2 = new Patch{0x0c42e60, make_bytes( 0xe9, 0xde, 0x00, 0x00, 0x00 )};
+      patch1 = new Patch {0x13ddd76 + 3, uint8_t {7}};
+      patch2 = new Patch {0x0c42e60, make_bytes( 0xe9, 0xde, 0x00, 0x00, 0x00 )};
       break;
     }
 }
