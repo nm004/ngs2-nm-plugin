@@ -16,7 +16,6 @@
 #endif
 
 #include "util.hpp"
-#include "qol.hpp"
 #include <windows.h>
 #include <fileapi.h>
 #include <strsafe.h>
@@ -27,7 +26,7 @@
 #include <iostream>
 #endif
 
-using namespace util;
+using namespace nm::util;
 
 namespace {
 
@@ -37,7 +36,7 @@ BOOL init (LPCWSTR);
 // This is needed to keep SteamDRM from wrongly decoding our
 // codes. We inject our codes after the decoding phase by hooking
 // SetCurrentDirectoryW.
-auto SetCurrentDirectoryW_hook = SimpleInlineHook{0, SetCurrentDirectoryW, init};
+auto SetCurrentDirectoryW_hook = new SimpleInlineHook{0, SetCurrentDirectoryW, init};
 
 // check_dlls returns true if the number of loaded modules (exe + dlls)
 // in the executable's directory is equal to 2. Otherwise, it returns false.
@@ -45,13 +44,10 @@ auto SetCurrentDirectoryW_hook = SimpleInlineHook{0, SetCurrentDirectoryW, init}
 bool check_dlls ();
 SimpleInlineHook *check_dlls_hook;
 
-template <uintptr_t rva>
-auto check_dlls_hook_v = SimpleInlineHook{rva, check_dlls};
-
 bool
 check_dlls ()
 {
-  check_dlls_hook->detach ();
+  delete check_dlls_hook;
   return true;
 }
 
@@ -87,53 +83,23 @@ load_plugins ()
     }
 }
 
-namespace steam_ae {
-  auto check_dlls_hook = ::check_dlls_hook_v<0xb5c460>;
-
-  void
-  apply_core_patch ()
-  {
-    ::check_dlls_hook = &check_dlls_hook;
-    check_dlls_hook.attach ();
-  }
-}
-
-namespace steam_jp {
-  auto check_dlls_hook = ::check_dlls_hook_v<0xb5c4b0>;
-
-  void
-  apply_core_patch ()
-  {
-    ::check_dlls_hook = &check_dlls_hook;
-    check_dlls_hook.attach ();
-  }
-}
-
 BOOL
 init (LPCWSTR lpPathName)
 {
   using namespace std;
   assert((cout << "INIT: core" << endl, 1));
 
-  SetCurrentDirectoryW_hook.detach ();
+  delete SetCurrentDirectoryW_hook;
   BOOL r = SetCurrentDirectoryW (lpPathName);
   load_plugins ();
 
-  switch (image_id)
+  switch (get_image_id ())
     {
-    case IMAGE_ID::NGS2_STEAM_AE:
-      {
-	using namespace steam_ae;
-	apply_core_patch ();
-	//apply_qol_patch ();
-      }
+    case ImageId::NGS2SteamAE:
+      ::check_dlls_hook = new SimpleInlineHook{0xb5c460, check_dlls};
       break;
-    case IMAGE_ID::NGS2_STEAM_JP:
-      {
-	using namespace steam_jp;
-	apply_core_patch ();
-	//apply_qol_patch ();
-      }
+    case ImageId::NGS2SteamJP:
+      ::check_dlls_hook = new SimpleInlineHook{0xb5c4b0, check_dlls};
       break;
     }
 
@@ -150,7 +116,6 @@ DllMain (HINSTANCE hinstDLL,
   switch (fdwReason)
     {
     case DLL_PROCESS_ATTACH:
-      SetCurrentDirectoryW_hook.attach ();
       break;
     default:
       break;

@@ -10,6 +10,16 @@ set(CMAKE_OPTIMIZE_DEPENDENCIES on)
 set(CMAKE_SHARED_MODULE_SUFFIX ".dll")
 
 add_subdirectory(distormx)
-add_subdirectory(src)
 
+add_library(util INTERFACE)
+target_include_directories(util INTERFACE src)
+target_link_libraries(util INTERFACE distormx)
+
+add_subdirectory(src/core)
+add_subdirectory(src/steam-bugfixes)
+
+install(TARGETS plugin_core DESTINATION install)
+install(TARGETS plugin_steam_bugfixes DESTINATION install)
+#install(TARGETS plugin_loader DESTINATION install/plugin)
+#install(TARGETS plugin_effect DESTINATION install/plugin)
 install(FILES doc/README.txt DESTINATION /)

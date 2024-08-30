@@ -17,7 +17,7 @@
 #endif
 
 #include "util.hpp"
-#include <winbase.h>
+#include <windows.h>
 #include <strsafe.h>
 #include <fileapi.h>
 #include <cstdint>
