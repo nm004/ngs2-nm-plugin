@@ -27,7 +27,7 @@
 #include <iostream>
 #endif
 
-using namespace nm::util;
+using namespace nm;
 
 namespace {
 
@@ -37,13 +37,14 @@ BOOL init (LPCWSTR);
 // This is needed to keep SteamDRM from wrongly decoding our
 // codes. We inject our codes after the decoding phase by hooking
 // SetCurrentDirectoryW.
-auto SetCurrentDirectoryW_hook = new SimpleInlineHook {0, SetCurrentDirectoryW, init};
+SimpleInlineHook<decltype (SetCurrentDirectoryW) *> *SetCurrentDirectoryW_hook
+	= new SimpleInlineHook {SetCurrentDirectoryW, init};
 
 // check_dlls returns true if the number of loaded modules (exe + dlls)
 // in the executable's directory is equal to 2. Otherwise, it returns false.
 // We make it always return true.
 bool check_dlls ();
-SimpleInlineHook *check_dlls_hook;
+SimpleInlineHook<decltype (check_dlls) *> *check_dlls_hook;
 
 bool
 check_dlls ()
@@ -94,7 +95,7 @@ init (LPCWSTR lpPathName)
   BOOL r = SetCurrentDirectoryW (lpPathName);
   load_plugins ();
 
-  switch (get_image_id ())
+  switch (image_id)
     {
     case ImageId::NGS2SteamAE:
       check_dlls_hook = new SimpleInlineHook {0xb5c460, check_dlls};

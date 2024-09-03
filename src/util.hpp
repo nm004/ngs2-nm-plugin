@@ -21,6 +21,7 @@
 #include <cassert>
 #include <cstdint>
 
+
 namespace nm::util::detail {
 
 uintptr_t
@@ -42,10 +43,9 @@ get_nt_headers ()
   return reinterpret_cast<PIMAGE_NT_HEADERS64> (base_addr + pehdr_ofs);
 }
 
-} // namespace util::detail
+} // namespace nm::util::detail
 
-
-namespace nm::util {
+namespace nm {
 
 // This is currently defined by the size of code.
 enum class ImageId : unsigned {
@@ -62,25 +62,26 @@ enum class ImageId : unsigned {
   NGS2SteamJP = 0x179c000,
 };
 
-ImageId get_image_id ()
-{
-  return ImageId {detail::get_nt_headers ()->OptionalHeader.SizeOfCode};
-}
+inline const ImageId image_id {util::detail::get_nt_headers ()->OptionalHeader.SizeOfCode};
+inline const uintptr_t base_of_image {util::detail::get_base_of_image ()};
 
 template <typename... T>
 constexpr std::array<uint8_t, (sizeof (T) + ... )>
 concat(T &&... x) noexcept
 {
   std::array<uint8_t, (sizeof (T) + ... )> result;
-  std::size_t index{};
-  ((std::copy_n(std::bit_cast<std::array<uint8_t, sizeof (T)>>(x).begin(),
-                sizeof (T), result.begin() + index),
+  std::size_t index {0};
+  ((std::copy_n(std::bit_cast<std::array<uint8_t, sizeof (T)>> (x).begin (),
+                sizeof (T), result.begin () + index),
     index += sizeof (T)),...);
   return result;
 }
 
+template <size_t N>
+using Bytes = std::array<uint8_t, N>;
+
 template <typename... T>
-constexpr std::array<uint8_t, sizeof...(T)>
+constexpr Bytes<sizeof...(T)>
 make_bytes(T &&... x) noexcept
 {
   return concat(static_cast<uint8_t> (x)...);
@@ -98,8 +99,7 @@ public:
 
   constexpr
   Patch (uintptr_t base, uintptr_t rva, const T &content)
-    : m_dst {reinterpret_cast<void *> (base + rva)},
-      m_rva {rva},
+    : m_dst {std::bit_cast<void *> (base + rva)},
       m_content {content}
   {
     m_buf = new T;
@@ -110,7 +110,7 @@ public:
 
   constexpr
   Patch (uintptr_t rva, const T &content)
-    : Patch {detail::get_base_of_image (), rva, content} {}
+    : Patch {base_of_image, rva, content} {}
 
   constexpr
   ~Patch ()
@@ -122,9 +122,6 @@ public:
 
   constexpr const T *
   old_content () const { return m_buf; }
-
-  constexpr const uintptr_t
-  rva () const { return m_rva; }
 
 private:
   // This forcibly overwrites the memory.
@@ -138,7 +135,6 @@ private:
     VirtualProtect (m_dst, sizeof (T), flOldProtect, &flOldProtect);
   }
 
-  uintptr_t m_rva;
   void *m_dst;
   T m_content;
   std::remove_const<T>::type *m_buf {nullptr};
@@ -151,8 +147,9 @@ public:
     : Patch<uint32_t> {call_rva+1, static_cast<uint32_t> (callee_rva - (call_rva + 5))} {}
 };
 
-// This does not provide trampoline() function and hook
-// is done by direct jump.
+// This does not provide trampoline() function.
+// Hooking is done by direct jump.
+template <typename T>
 class SimpleInlineHook {
 public:
   SimpleInlineHook () = delete;
@@ -161,24 +158,22 @@ public:
 
   constexpr
   SimpleInlineHook (uintptr_t base, uintptr_t target_func, uintptr_t callback_func)
-    : patch {base, target_func, concat(mov_rax_imm, callback_func, jmp_rax)} {}
+    : patch {base, target_func,
+	    // mov rax, imm
+	    // jmp rax
+	    concat(make_bytes (0x48, 0xb8), callback_func,
+		   make_bytes (0xff, 0xe0))} {}
 
   constexpr
-  SimpleInlineHook (uintptr_t base, auto target_func, auto callback_func)
-    : SimpleInlineHook{base,
-		       reinterpret_cast<uintptr_t> (target_func),
-		       reinterpret_cast<uintptr_t> (callback_func)} {}
+  SimpleInlineHook (T target_func, T callback_func)
+    : SimpleInlineHook {0, reinterpret_cast<uintptr_t> (target_func), reinterpret_cast<uintptr_t> (callback_func)} {}
 
   constexpr
-  SimpleInlineHook (auto target_func, auto callback_func)
-    : SimpleInlineHook{detail::get_base_of_image (),
-		       static_cast<uintptr_t> (target_func),
-		       reinterpret_cast<uintptr_t> (callback_func)} {}
+  SimpleInlineHook (uintptr_t target_func, T callback_func)
+    : SimpleInlineHook {base_of_image, target_func, reinterpret_cast<uintptr_t> (callback_func)} {}
 
 private:
-  static constexpr auto mov_rax_imm {make_bytes(0x48, 0xb8)};
-  static constexpr auto jmp_rax {make_bytes(0xff, 0xe0)};
-  Patch<decltype(concat(mov_rax_imm, uintptr_t{0}, jmp_rax))> patch;
+  Patch<Bytes<2 + sizeof (uintptr_t) + 2>> patch;
 };
 
 template <typename T>
@@ -189,20 +184,20 @@ public:
   InlineHook & operator= (const InlineHook &) = delete;
 
   constexpr
-  InlineHook (uintptr_t base, uintptr_t target_func, uintptr_t callback_func)
-    : m_dst {base + target_func}, m_cb {callback_func}
+  InlineHook (uintptr_t base, uintptr_t target_func, T callback_func)
+    : m_dst {reinterpret_cast<T> (base + target_func)}, m_cb {callback_func}
   {
     int r {distormx_hook (reinterpret_cast<void **> (&m_dst), reinterpret_cast<void *> (m_cb))};
     assert(r);
   }
 
   constexpr
-  InlineHook (uintptr_t target_func, uintptr_t callback_func)
-    : InlineHook {detail::get_base_of_image (), target_func, callback_func} {}
+  InlineHook (T target_func, T callback_func)
+    : InlineHook {0, target_func, callback_func} {}
 
   constexpr
   InlineHook (uintptr_t target_func, T callback_func)
-    : InlineHook {target_func, reinterpret_cast<uintptr_t> (callback_func)} {}
+    : InlineHook {base_of_image, target_func, callback_func} {}
 
   constexpr
   ~InlineHook ()
@@ -211,11 +206,11 @@ public:
   }
 
   constexpr
-  T trampoline () const { return reinterpret_cast<T> (m_dst); }
+  T trampoline () const { return m_dst; }
 
 private:
-  uintptr_t m_dst;
-  uintptr_t m_cb;
+  T m_dst;
+  T m_cb;
 };
 
 template <typename T>
@@ -234,6 +229,6 @@ public:
   T trampoline () const { return reinterpret_cast<T> (*patch.old_content ()); }
 };
 
-} // namespace nm::util
+} // namespace nm
 
 #endif

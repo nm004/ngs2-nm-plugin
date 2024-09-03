@@ -25,13 +25,13 @@
 #include <iostream>
 #endif
 
-using namespace nm::util;
+using namespace nm;
 using namespace std;
 
 namespace {
 
 Patch<uint8_t> *patch1;
-Patch<array<uint8_t, 5>> *patch2;
+Patch<Bytes<5>> *patch2;
 
 void
 init ()
@@ -40,7 +40,7 @@ init ()
 
   assert((cout << "INIT: steam-bugfixes" << endl, 1));
 
-  switch (get_image_id ())
+  switch (image_id)
     {
     case ImageId::NGS2SteamAE:
       // This is for the fix of "Return to main menu" hang up bug.

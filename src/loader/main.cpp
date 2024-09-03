@@ -28,7 +28,8 @@
 #include <iostream>
 #endif
 
-using namespace nm::util;
+using namespace nm;
+using namespace std;
 
 namespace {
 
@@ -129,8 +130,6 @@ open_mod_data (uint32_t data_id)
 HANDLE
 open_mod_data (struct databin_directory_header &dbi, struct chunk_info &di)
 { 
-  using namespace std;
-
   span<uint32_t> di_ofs {
     reinterpret_cast<uint32_t *> (reinterpret_cast<uintptr_t> (&dbi) + sizeof (dbi)),
     dbi.item_count
@@ -146,11 +145,9 @@ open_mod_data (struct databin_directory_header &dbi, struct chunk_info &di)
 void
 init ()
 {
-  using namespace std;
-
   assert((cout << "INIT: loader" << endl, 1));
 
-  switch (get_image_id ())
+  switch (image_id)
     {
     case ImageId::NGS2SteamAE:
       get_chunk_size_hook = new InlineHook {0x13ab5e0, get_chunk_size};
@@ -170,7 +167,6 @@ DllMain (HINSTANCE hinstDLL,
 	 DWORD fdwReason,
 	 LPVOID lpvReserved)
 {
-  using namespace std;
   assert ((cout << "INIT: loader" << endl, 1));
 
   switch (fdwReason)

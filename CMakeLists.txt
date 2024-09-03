@@ -21,19 +21,18 @@ link_libraries(-static util)
 add_subdirectory(src/core)
 add_subdirectory(src/steam-bugfixes)
 add_subdirectory(src/loader)
-#add_subdirectory(src/effect)
+add_subdirectory(src/effect)
 
 set_property(TARGET core PROPERTY PREFIX "")
 set_property(TARGET core PROPERTY OUTPUT_NAME "dbghelp")
 
 set_property(TARGET
+	effect
 	loader
 	steam-bugfixes
-	PROPERTY
-	PREFIX "nm")
+	PROPERTY PREFIX "nm")
 
 install(TARGETS core DESTINATION install)
 install(TARGETS steam-bugfixes DESTINATION install/plugin)
 install(TARGETS loader DESTINATION install/plugin)
-#install(TARGETS plugin_effect DESTINATION install/plugin)
-install(FILES doc/README.txt DESTINATION /)
+install(TARGETS effect DESTINATION install/plugin)
