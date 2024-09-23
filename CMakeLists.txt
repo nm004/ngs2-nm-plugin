@@ -18,14 +18,13 @@ target_link_libraries(util INTERFACE distormx)
 
 link_libraries(-static util)
 
-add_subdirectory(src/core)
-add_subdirectory(src/steam-bugfixes)
-add_subdirectory(src/loader)
-add_subdirectory(src/effect)
-
+add_library(core MODULE src/core/main.cpp)
 set_property(TARGET core PROPERTY PREFIX "")
 set_property(TARGET core PROPERTY OUTPUT_NAME "dbghelp")
 
+add_library(steam-bugfixes MODULE src/steam-bugfixes/main.cpp)
+add_library(loader MODULE src/loader/main.cpp)
+add_library(effect MODULE src/effect/main.cpp)
 set_property(TARGET
 	effect
 	loader
