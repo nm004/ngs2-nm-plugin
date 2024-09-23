@@ -4,8 +4,8 @@
  * Master Collection NM Plugin.
  */
 
-#ifndef NGS2_NM_PLUGIN_EFFECT_H
-#define NGS2_NM_PLUGIN_EFFECT_H
+#ifndef NGS2_NM_PLUGIN_EFFECT_DISMEMBER_H
+#define NGS2_NM_PLUGIN_EFFECT_DISMEMBER_H
 
 #include "util.hpp"
 #include <algorithm>
@@ -267,4 +267,4 @@ get_OPTscat_indices (struct model &mdl, uint32_t *out_indices)
 
 } // namespace nm
 
-#endif 
+#endif // NGS2_NM_PLUGIN_EFFECT_DISMEMBER_H
