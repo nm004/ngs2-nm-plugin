@@ -54,7 +54,6 @@ namespace dismember {
   SimpleInlineHook<decltype (get_OPTscat_indices<0>) *> *get_OPTscat_indices_hook;
 
   CallOffsetPatch *patch1;
-  Patch<Bytes<4>> *patch2;
   CallOffsetPatch *patch3;
   CallOffsetPatch *patch4;
   Patch<Bytes<6>> *patch5;
@@ -140,17 +139,10 @@ init ()
 	// even the flow of the function looks totally same.
         patch1 = new CallOffsetPatch {0x145866a, 0x1220060};
 
-	// We inject the small code that adds 2 to param3 of
-	// adjust_BloodMutilationRootEffect_params, which makes the function can adjust
-	// params to make blood jet larger and wider. If the param3 of bit 8 is high,
-	// it looks like the effect is the minor version of the one whose bit 8 is low.
-	//
-	// Also, We overwrites the call to alloc_BloodMutilationRootEffect with the
+	// We overwrites the call to alloc_BloodMutilationRootEffect with the
 	// call to adjust_BloodMutilationRootEffect_params, which calls
 	// alloc_BloodMutilationRootEffect internally.
 
-	// add r8b, 0x02
-	patch2 = new Patch {0x1206e30 - 4, make_bytes( 0x41, 0x80, 0xc0, 0x02 )};
 	patch3 = new CallOffsetPatch{0x12201f6, 0x1206e30};
 
 	// We directly detour trigger_VanishViscosityEffect function to
@@ -205,7 +197,6 @@ init ()
 	get_OPTscat_indices_hook = new SimpleInlineHook {0x144c8e0, get_OPTscat_indices<0x1e37f30>};
 
 	patch1 = new CallOffsetPatch {0x14584f5, 0x121fde0};
-	patch2 = new Patch {0x1206b90 - 4, make_bytes( 0x41, 0x80, 0xc0, 0x02 )};
 	patch3 = new CallOffsetPatch {0x1206d26, 0x1206b90};
 	patch4 = new CallOffsetPatch{0x14585f8, 0x121fba0};
 	patch5 = new Patch{0x0c0fcb0 - 6, make_bytes( 0x4c, 0x87, 0xc2, 0x48, 0x87, 0xd1 )};
