@@ -11,9 +11,6 @@
 
 #include "distormx.h"
 #include <windows.h>
-#include <memoryapi.h>
-#include <psapi.h>
-#include <processthreadsapi.h>
 #include <type_traits>
 #include <algorithm>
 #include <array>
@@ -24,21 +21,10 @@
 
 namespace nm::util::detail {
 
-uintptr_t
-get_base_of_image ()
-{
-  MODULEINFO moduleInfo;
-  GetModuleInformation(GetCurrentProcess (),
-		       GetModuleHandle (nullptr),
-		       &moduleInfo,
-		       sizeof moduleInfo);
-  return reinterpret_cast<uintptr_t> (moduleInfo.lpBaseOfDll);
-}
-
 PIMAGE_NT_HEADERS64
 get_nt_headers ()
 {
-  auto base_addr {get_base_of_image ()};
+  auto base_addr {reinterpret_cast<uintptr_t> (GetModuleHandle (nullptr))};
   auto pehdr_ofs {*reinterpret_cast<uint32_t *> (base_addr + 0x3c)};
   return reinterpret_cast<PIMAGE_NT_HEADERS64> (base_addr + pehdr_ofs);
 }
@@ -63,7 +49,7 @@ enum class ImageId : unsigned {
 };
 
 inline const ImageId image_id {util::detail::get_nt_headers ()->OptionalHeader.SizeOfCode};
-inline const uintptr_t base_of_image {util::detail::get_base_of_image ()};
+inline const uintptr_t base_of_image {reinterpret_cast<uintptr_t> (GetModuleHandle (nullptr))};
 
 template <typename... T>
 constexpr std::array<uint8_t, (sizeof (T) + ... )>

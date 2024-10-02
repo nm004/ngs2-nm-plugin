@@ -14,11 +14,8 @@
 #  define DLLEXPORT __declspec (dllexport)
 #endif
 
-#define WIN32_LEAN_AND_MEAN
-
 #include "dismember.hpp"
 #include "util.hpp"
-#include <windows.h>
 #include <cassert>
 
 #if !defined(NDEBUG)
