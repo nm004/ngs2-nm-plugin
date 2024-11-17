@@ -102,14 +102,12 @@ HANDLE
 open_mod_data (uint32_t data_id)
 {
   // 16 is sufficiently enough for id string since the
-  // number of items in databin is below 10000.
+  // number of items in databin is less than 10000.
   TCHAR name[16];
   StringCbPrintf (name, sizeof (name), TEXT ("%05d.dat"), data_id);
 
   const TCHAR *mod_dirs[] = {
-    TEXT(""),
     TEXT("mods\\"),
-    TEXT("databin\\mods\\"),
   };
 
   HANDLE hFile = INVALID_HANDLE_VALUE;

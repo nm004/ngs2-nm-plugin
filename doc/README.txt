@@ -1,6 +1,5 @@
 NINJA GAIDEN SIGMA 2 NM Plugins
 ================================
-
 Author: Nozomi Miyamori
 
 This mod currently supports NINJA GAIDEN SIGMA 2 Master Collection on Steam only.
@@ -8,12 +7,12 @@ This mod currently supports NINJA GAIDEN SIGMA 2 Master Collection on Steam only
 Features
 ----------
 
- - Restoring NG2 mutilation gore effects
- - Restoring NG2 crushing gore effects
- - Restoring NG2 bow hit gore effects
- - No micro freezing when you delimb enemies
- - Bodies of non-fiends will never disappear
- - Load additional dll and mod data from a file
+- Restoring NG2 mutilation gore effects
+- Restoring NG2 crushing gore effects
+- Restoring NG2 bow hit gore effects
+- No micro freezing when you delimb enemies
+- Bodies of non-fiends will never disappear
+- Load additional dll and mod data from a file
 
 Installation
 -------------
@@ -41,12 +40,10 @@ folder, namely "NINJA GAIDEN Σ2". The game folder looks like below after the in
   |
   <other files and folders>
 
-"dbghelp.dll" is capable of loading plugins (DLLs) under the "plugin" folder and
-data under "mods" folder. You can place "plugin" and "mods" folder under the
-"databin" folder, but "dbghelp.dll" must resides in the <game folder>.
+"dbghelp.dll" is capable of loading plugins (DLLs) under the "plugin" folder.
 
 For Steam Deck (Linux) users
---------------------------------
+----------------------------
 
 This mod supports Steam Deck. To enable this mod, you have to specify the "Launch Options" of
 the game as below:
@@ -54,38 +51,41 @@ the game as below:
 WINEDLLOVERRIDES=dbghelp=n,b %command%
 
 Known bugs
---------------
+----------
 
- - Crushing the last enemy may make events delayed (e.g. doors open in a few secs,
-   but not instantly)
- - Robots drops bloodstains instead of oil stains
+- Crushing the last enemy may make events delayed (e.g. doors open in a few secs,
+  but not instantly)
+- Robots drops bloodstains instead of oil stains
 
 License
-------------
+-------
 
 This mod's source code is distributed under the Creative Commons' CC0 license. The binary
 distributable follows the third parties' terms and conditions. See third-party-licenses
 folder for their licenses.
 
-Acknowledgement
----------------
+Acknowledgements
+----------------
 
-I would like to express my special thanks to the people who deliver the following great
-software. This mod could not be exist without them.
+I would like to express my special thanks to the people who deliver the following
+great works, especially:
 
- - NINJA GAIDEN 2 and NINJA GAIDEN SIGMA 2 by TeamNinja and KOEI TECMO
- - Ghidra by National Security Agency
- - x64dbg by x64dbg team
- - PolyHook 2 by Stephen Eckels (previously used by this mod)
- - distormx by Gil Dabah
- - GCC and GDB by Sourceware and Free Software Foundation
- - MinGW-w64 by MinGW-w64 team
- - DoaTool by tianmuxia
- - NINJA GAIDEN SIGMA 2 BLACK by Fiend Busa
+- TeamNinja and KOEI TECMO for NINJA GAIDEN 2 and NINJA GAIDEN SIGMA 2
+- Fiend Busa for NINJA GAIDEN SIGMA 2 BLACK
 
- Credits
- ---------
- - Fiend Busa
- - enhuhu
- - Guilty
- - ZANGETSU
+and also:
+
+- Gil Dabah for distormx
+- Stephen Eckels for PolyHook 2 (previously used by this mod)
+- tianmuxia for DoaTool
+- dtkmnr for DOA5LR Tool
+- NSA for Ghidra
+- x64dbg team for x64dbg
+- Sourceware, FSF and MinGW-w64 for GNU toolchains
+
+Special Thanks
+--------------
+
+- enhuhu
+- Guilty
+- ZANGETSU

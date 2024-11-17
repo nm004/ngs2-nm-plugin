@@ -58,9 +58,7 @@ load_plugins ()
 {
   // Dll search paths starting from the current directory
   const TCHAR *search_paths[] = {
-    TEXT(""),
     TEXT("plugin\\"),
-    TEXT("databin\\plugin\\"),
   };
   for (auto &i : search_paths)
     {
