@@ -21,8 +21,7 @@
 #include <strsafe.h>
 #include <fileapi.h>
 #include <cstdint>
-#include <algorithm>
-#include <span>
+#include <map>
 
 #if !defined(NDEBUG)
 #include <iostream>
@@ -36,7 +35,7 @@ namespace {
 struct databin_directory_header {
   uint32_t item_count;
   // We do not use this because id == index on NGS2's databin
-  uint32_t offset_to_id_and_index_pairs;
+  uint32_t offset_to_index_to_pos_pairs;
   uint32_t id_and_index_pairs_count;
   uint32_t data0xc;
 };
@@ -52,8 +51,9 @@ struct ProductionPackage {
 
 struct chunk_info {
   uint32_t offset_to_data;
-  uint32_t data0x4;
-  uint32_t size;
+  // we use padding to store its index
+  uint32_t padding0x4;
+  uint32_t decompressed_size;
   uint32_t compressed_size;
   uint32_t data0x10;
   uint16_t data0x14;
@@ -61,50 +61,65 @@ struct chunk_info {
   uint8_t data0x17;
 };
 
-uint32_t get_chunk_size (uint32_t);
-bool load_data (ProductionPackage *, void *, struct chunk_info &, void *);
+chunk_info *get_chunk_info (ProductionPackage *, uint32_t);
+bool load_data (ProductionPackage *, uintptr_t, struct chunk_info *, void *);
 HANDLE open_mod_data (uint32_t);
 HANDLE open_mod_data (struct databin_directory_header &, struct chunk_info &);
 
-InlineHook<decltype (get_chunk_size) *> *get_chunk_size_hook;
+VFPHook<decltype (get_chunk_info) *> *get_chunk_info_hook;
 VFPHook<decltype (load_data) *> *load_data_hook;
+map<uint32_t, chunk_info> *chunk_index_to_new_chunk_info;
 
 bool
-load_data (ProductionPackage *thisptr, void *param2, struct chunk_info &di, void *out_buf)
+load_data (ProductionPackage *thisptr, uintptr_t param2, struct chunk_info *ci, void *out_buf)
 {
-  HANDLE hFile = open_mod_data (thisptr->databin_directory_header, di);
-  if (hFile == INVALID_HANDLE_VALUE)
-    return load_data_hook->trampoline () (thisptr, param2, di, out_buf);
+  HANDLE hFile;
+  if (!chunk_index_to_new_chunk_info->contains(ci->padding0x4))
+    return load_data_hook->trampoline () (thisptr, param2, ci, out_buf);
 
-  LARGE_INTEGER fsize;
-  GetFileSizeEx (hFile, &fsize);
+  if ((hFile = open_mod_data (ci->padding0x4)) == INVALID_HANDLE_VALUE)
+    return false;
 
   DWORD nBytesRead;
-  BOOL r {ReadFile (hFile, out_buf, fsize.u.LowPart, &nBytesRead, nullptr)};
+  BOOL r {ReadFile (hFile, out_buf, ci->decompressed_size, &nBytesRead, nullptr)};
   CloseHandle (hFile);
   return r;
 }
 
-uint32_t
-get_chunk_size (uint32_t data_id)
+chunk_info *
+get_chunk_info (ProductionPackage *thisptr, uint32_t index)
 {
-  HANDLE hFile = open_mod_data (data_id);
-  if (hFile == INVALID_HANDLE_VALUE)
-    return get_chunk_size_hook->trampoline () (data_id);
+  auto ci = get_chunk_info_hook->trampoline () (thisptr, index);
+  if (!ci)
+      return ci;
+
+  HANDLE hFile;
+  if ((hFile = open_mod_data (index)) == INVALID_HANDLE_VALUE)
+    {
+      auto x = chunk_index_to_new_chunk_info->find(index);
+      if (x != chunk_index_to_new_chunk_info->end())
+	{
+	  chunk_index_to_new_chunk_info->erase (x);
+	}
+      return ci;
+    }
 
   LARGE_INTEGER size;
   GetFileSizeEx (hFile, &size);
   CloseHandle (hFile);
-  return size.u.LowPart;
+  auto p = chunk_index_to_new_chunk_info->insert (pair(index, *ci));
+  p.first->second.decompressed_size = size.u.LowPart;
+  p.first->second.padding0x4 = index;
+  return &p.first->second;
 }
 
 HANDLE
-open_mod_data (uint32_t data_id)
+open_mod_data (uint32_t index)
 {
   // 16 is sufficiently enough for id string since the
   // number of items in databin is less than 10000.
   TCHAR name[16];
-  StringCbPrintf (name, sizeof (name), TEXT ("%05d.dat"), data_id);
+  StringCbPrintf (name, sizeof (name), TEXT ("%05d.dat"), index);
 
   const TCHAR *mod_dirs[] = {
     TEXT("mods\\"),
@@ -125,35 +140,21 @@ open_mod_data (uint32_t data_id)
   return hFile;
 }
 
-HANDLE
-open_mod_data (struct databin_directory_header &dbi, struct chunk_info &di)
-{ 
-  span<uint32_t> di_ofs {
-    reinterpret_cast<uint32_t *> (reinterpret_cast<uintptr_t> (&dbi) + sizeof (dbi)),
-    dbi.item_count
-  };
-
-  uintptr_t o = reinterpret_cast<uintptr_t> (&di) - reinterpret_cast<uintptr_t> (&dbi);
-
-  // Search the entry having the offset to the passed chunk_info
-  auto i {lower_bound (di_ofs.begin (), di_ofs.end (), o)};
-  return open_mod_data (distance (di_ofs.begin (), i));
-}
-
 void
 init ()
 {
   assert((cout << "INIT: loader" << endl, 1));
+  chunk_index_to_new_chunk_info = new map<uint32_t, chunk_info>();
 
   switch (image_id)
     {
     case ImageId::NGS2SteamAE:
-      get_chunk_size_hook = new InlineHook {0x13ab5e0, get_chunk_size};
       load_data_hook = new VFPHook {0x18ef6f0, load_data};
+      get_chunk_info_hook = new VFPHook {0x18ef6f8, get_chunk_info};
       break;
     case ImageId::NGS2SteamJP:
-      get_chunk_size_hook = new InlineHook {0x13ab3b0, get_chunk_size};
       load_data_hook = new VFPHook {0x18ee6f0, load_data};
+      get_chunk_info_hook = new VFPHook {0x18ee6f8, get_chunk_info};
       break;
     }
 }

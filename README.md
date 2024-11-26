@@ -1,8 +1,8 @@
 Build Requirements
 ------------------
 
- - cmake
- - MinGW-64
+ - CMake
+ - MinGW-w64 or Visual Studio 2022
 
 ### How to build
 
@@ -12,6 +12,6 @@ make -C build all
 ```
 
 License
--------------------
+-------
 
 CC0

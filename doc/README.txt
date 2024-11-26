@@ -50,19 +50,27 @@ the game as below:
 
 WINEDLLOVERRIDES=dbghelp=n,b %command%
 
+Development
+-----------
+
+### Build Requirements
+
+ - CMake
+ - MinGW-w64 or Visual Studio 2022
+
+### How to build
+
+```
+cmake -B build .
+make -C build all
+```
+
 Known bugs
 ----------
 
 - Crushing the last enemy may make events delayed (e.g. doors open in a few secs,
   but not instantly)
 - Robots drops bloodstains instead of oil stains
-
-License
--------
-
-This mod's source code is distributed under the Creative Commons' CC0 license. The binary
-distributable follows the third parties' terms and conditions. See third-party-licenses
-folder for their licenses.
 
 Acknowledgements
 ----------------
@@ -89,3 +97,10 @@ Special Thanks
 - enhuhu
 - Guilty
 - ZANGETSU
+
+License
+-------
+
+The source code is distributed under the Creative Commons' CC0 license. The binary
+distributable follows the third parties' terms and conditions.
+
