@@ -95,6 +95,9 @@ init (LPCWSTR lpPathName)
 
   switch (image_id)
     {
+    case ImageId::NGS1SteamAE:
+      check_dlls_hook = new SimpleInlineHook {0x571fd0, check_dlls};
+      break;
     case ImageId::NGS2SteamAE:
       check_dlls_hook = new SimpleInlineHook {0xb5c460, check_dlls};
       break;
