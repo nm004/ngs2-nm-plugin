@@ -4,92 +4,120 @@
  * Master Collection NM Plugin.
  */
 
-#if defined(__MINGW32__)
-#  if defined(NDEBUG)
-#    define DLLEXPORT __declspec (dllexport)
-#  else
-#    define DLLEXPORT
-#  endif
+#if defined(_MSVC_LANG)
+# define DLLEXPORT __declspec (dllexport)
+# define WIN32_LEAN_AND_MEAN
 #else
-#  define DLLEXPORT __declspec (dllexport)
+# define DLLEXPORT
 #endif
-
-#define WIN32_LEAN_AND_MEAN
 
 #include "util.hpp"
 #include <windows.h>
 #include <strsafe.h>
 #include <fileapi.h>
 #include <cstdint>
+#include <cstddef>
 #include <map>
-
-#if !defined(NDEBUG)
-#include <iostream>
-#endif
 
 using namespace nm;
 using namespace std;
 
 namespace {
 
-struct databin_directory_header {
-  uint32_t item_count;
-  // We do not use this because id == index on NGS2's databin
-  uint32_t offset_to_index_to_pos_pairs;
-  uint32_t id_and_index_pairs_count;
-  uint32_t data0xc;
-};
-
 struct ProductionPackage {
-  uintptr_t vfp;
-  uint8_t path[0x10];
-  uint64_t data0x18;
-  uint64_t data0x20;
-  struct databin_directory_header &databin_directory_header;
+  uintptr_t *vfpt;
   // imcomplete
 };
 
 struct chunk_info {
-  uint32_t offset_to_data;
-  // we use padding to store its index
-  uint32_t padding0x4;
+  int64_t offset_to_data;
   uint32_t decompressed_size;
   uint32_t compressed_size;
   uint32_t data0x10;
   uint16_t data0x14;
   uint8_t data0x16;
   uint8_t data0x17;
+  // only valid for NGS1 databin
+  uint8_t data0x18;
+  uint8_t data0x19;
+  uint8_t data0x1a;
+  uint8_t data0x1b;
+  uint32_t data0x1c;
 };
 
-chunk_info *get_chunk_info (ProductionPackage *, uint32_t);
+LPCRITICAL_SECTION lpCriticalSectionOfRenderingThread;
+
+struct chunk_info *get_chunk_info (ProductionPackage *, uint32_t);
 bool load_data (ProductionPackage *, uintptr_t, struct chunk_info *, void *);
 HANDLE open_mod_data (uint32_t);
-HANDLE open_mod_data (struct databin_directory_header &, struct chunk_info &);
 
-VFPHook<decltype (get_chunk_info) *> *get_chunk_info_hook;
-VFPHook<decltype (load_data) *> *load_data_hook;
-map<uint32_t, chunk_info> *chunk_index_to_new_chunk_info;
+void *(*tmcl_malloc)(void *, uint32_t);
+VFPHook<decltype (get_chunk_info)> *get_chunk_info_hook;
+VFPHook<decltype (load_data)> *load_data_hook;
+map<uint32_t, struct chunk_info> *chunk_index_to_new_chunk_info;
+map<struct chunk_info *, uint32_t> *new_chunk_info_to_chunk_index;
 
+bool
+load_data_ngs1 (ProductionPackage *thisptr, uintptr_t param2, struct chunk_info *ci, void *out_buf)
+{
+  HANDLE hFile;
+
+  auto itr = new_chunk_info_to_chunk_index->find(ci);
+  if (itr == new_chunk_info_to_chunk_index->end())
+    goto BAIL;
+
+  hFile = open_mod_data (itr->second);
+  if (hFile == INVALID_HANDLE_VALUE)
+    goto BAIL;
+
+  DWORD nBytesRead;
+  BOOL r;
+  if (ci->data0x1a == 0x11)
+    {
+      void *buf = tmcl_malloc (out_buf, ci->decompressed_size);
+      if (r = ReadFile (hFile, buf, ci->decompressed_size, &nBytesRead, nullptr))
+	{
+	  auto init_ngs1_tmcl_buf = reinterpret_cast<void (*)(ProductionPackage *, void *, void*)>(*(thisptr->vfpt + 1));
+	  init_ngs1_tmcl_buf (thisptr, out_buf, buf);
+	}
+    }
+  else
+    r = ReadFile (hFile, out_buf, ci->decompressed_size, &nBytesRead, nullptr);
+  CloseHandle (hFile);
+  return r;
+
+BAIL:
+  return load_data_hook->call (thisptr, param2, ci, out_buf);
+}
+
+// param2 is never used.
 bool
 load_data (ProductionPackage *thisptr, uintptr_t param2, struct chunk_info *ci, void *out_buf)
 {
   HANDLE hFile;
-  if (!chunk_index_to_new_chunk_info->contains(ci->padding0x4))
-    return load_data_hook->trampoline () (thisptr, param2, ci, out_buf);
 
-  if ((hFile = open_mod_data (ci->padding0x4)) == INVALID_HANDLE_VALUE)
-    return false;
+  auto itr = new_chunk_info_to_chunk_index->find(ci);
+  if (itr == new_chunk_info_to_chunk_index->end())
+    goto BAIL;
+
+  hFile = open_mod_data (itr->second);
+  if (hFile == INVALID_HANDLE_VALUE)
+    goto BAIL;
 
   DWORD nBytesRead;
-  BOOL r {ReadFile (hFile, out_buf, ci->decompressed_size, &nBytesRead, nullptr)};
+  BOOL r;
+  r = ReadFile (hFile, out_buf, ci->decompressed_size, &nBytesRead, nullptr);
   CloseHandle (hFile);
   return r;
+
+BAIL:
+  return load_data_hook->call (thisptr, param2, ci, out_buf);
 }
 
-chunk_info *
+struct chunk_info *
 get_chunk_info (ProductionPackage *thisptr, uint32_t index)
 {
-  auto ci = get_chunk_info_hook->trampoline () (thisptr, index);
+  auto ci = get_chunk_info_hook->call (thisptr, index);
   if (!ci)
       return ci;
 
@@ -99,6 +127,7 @@ get_chunk_info (ProductionPackage *thisptr, uint32_t index)
       auto x = chunk_index_to_new_chunk_info->find(index);
       if (x != chunk_index_to_new_chunk_info->end())
 	{
+	  new_chunk_info_to_chunk_index->erase (&x->second);
 	  chunk_index_to_new_chunk_info->erase (x);
 	}
       return ci;
@@ -107,17 +136,15 @@ get_chunk_info (ProductionPackage *thisptr, uint32_t index)
   LARGE_INTEGER size;
   GetFileSizeEx (hFile, &size);
   CloseHandle (hFile);
-  auto p = chunk_index_to_new_chunk_info->insert (pair(index, *ci));
-  p.first->second.decompressed_size = size.u.LowPart;
-  p.first->second.padding0x4 = index;
-  return &p.first->second;
+  ci = &chunk_index_to_new_chunk_info->insert (pair(index, *ci)).first->second;
+  ci->decompressed_size = size.u.LowPart;
+  new_chunk_info_to_chunk_index->insert (pair(ci, index));
+  return ci;
 }
 
 HANDLE
 open_mod_data (uint32_t index)
 {
-  // 16 is sufficiently enough for id string since the
-  // number of items in databin is less than 10000.
   TCHAR name[16];
   StringCbPrintf (name, sizeof (name), TEXT ("%05d.dat"), index);
 
@@ -143,11 +170,16 @@ open_mod_data (uint32_t index)
 void
 init ()
 {
-  assert((cout << "INIT: loader" << endl, 1));
-  chunk_index_to_new_chunk_info = new map<uint32_t, chunk_info>();
+  chunk_index_to_new_chunk_info = new map<uint32_t, chunk_info> {};
+  new_chunk_info_to_chunk_index = new map<chunk_info *, uint32_t> {};
 
   switch (image_id)
     {
+    case ImageId::NGS1SteamAE:
+      load_data_hook = new VFPHook {0x0994b50, load_data};
+      get_chunk_info_hook = new VFPHook {0x0994b58, get_chunk_info};
+      tmcl_malloc = reinterpret_cast<decltype(tmcl_malloc)>(base_of_image + 0x07e5630);
+      break;
     case ImageId::NGS2SteamAE:
       load_data_hook = new VFPHook {0x18ef6f0, load_data};
       get_chunk_info_hook = new VFPHook {0x18ef6f8, get_chunk_info};
@@ -166,13 +198,14 @@ DllMain (HINSTANCE hinstDLL,
 	 DWORD fdwReason,
 	 LPVOID lpvReserved)
 {
-  assert ((cout << "INIT: loader" << endl, 1));
-
   switch (fdwReason)
     {
     case DLL_PROCESS_ATTACH:
       init ();
       break;
+    case DLL_PROCESS_DETACH:
+      delete chunk_index_to_new_chunk_info;
+      delete new_chunk_info_to_chunk_index;
     default:
       break;
     }
