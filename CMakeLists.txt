@@ -6,17 +6,13 @@ cmake_minimum_required(VERSION 3.20)
 project(ngs2-nm-plugin LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_COMPILER_TARGET x86_64-w64-mingw32)
 set(CMAKE_OPTIMIZE_DEPENDENCIES on)
 set(CMAKE_SHARED_MODULE_SUFFIX ".dll")
 
-add_subdirectory(distormx)
-
 add_library(util INTERFACE)
 target_include_directories(util INTERFACE src)
-target_link_libraries(util INTERFACE distormx)
 
-link_libraries(-static util)
+link_libraries(util)
 
 add_library(core MODULE src/core/main.cpp)
 set_property(TARGET core PROPERTY PREFIX "")

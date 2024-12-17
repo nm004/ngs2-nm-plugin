@@ -4,23 +4,16 @@
  * Master Collection NM Plugin.
  */
 
-#if defined(__MINGW32__)
-#  if defined(NDEBUG)
-#    define DLLEXPORT __declspec (dllexport)
-#  else
-#    define DLLEXPORT
-#  endif
+#if defined(_MSVC_LANG)
+# define DLLEXPORT __declspec (dllexport)
+# define WIN32_LEAN_AND_MEAN
 #else
-#  define DLLEXPORT __declspec (dllexport)
+# define DLLEXPORT
 #endif
 
 #include "util.hpp"
 #include <cstdint>
 #include <array>
-
-#if !defined(NDEBUG)
-#include <iostream>
-#endif
 
 using namespace nm;
 using namespace std;
@@ -35,24 +28,21 @@ init ()
 {
   using namespace std;
 
-  assert((cout << "INIT: steam-bugfixes" << endl, 1));
-
   switch (image_id)
     {
     case ImageId::NGS2SteamAE:
-      // This is for the fix of "Return to main menu" hang up bug.
+      // This fixes the "Return to main menu" hang up bug.
       // It sees out of the index at the point.
       patch1 = new Patch {0x13ddfa6 + 3, uint8_t {7}};
 
-      // This is for the fix of the never terminating game bug.
-      // It enters dead lock at the point.
+      // This fixes the never terminating bug. It enters dead lock at the point.
       // jmp 0xde
-      patch2 = new Patch {0xC43060, make_bytes( 0xe9, 0xde, 0x00, 0x00, 0x00 )};
+      patch2 = new Patch {0xC43060, make_bytes (0xe9, 0xde, 0x00, 0x00, 0x00)};
       break;
 
     case ImageId::NGS2SteamJP:
       patch1 = new Patch {0x13ddd76 + 3, uint8_t {7}};
-      patch2 = new Patch {0x0c42e60, make_bytes( 0xe9, 0xde, 0x00, 0x00, 0x00 )};
+      patch2 = new Patch {0x0c42e60, make_bytes (0xe9, 0xde, 0x00, 0x00, 0x00)};
       break;
     }
 }

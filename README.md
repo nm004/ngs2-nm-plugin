@@ -20,6 +20,7 @@ Installation
 Just copy and paste the contents of "install" folder (not the folder itself) into the game
 folder, namely "NINJA GAIDEN Σ2". The game folder looks like below after the installation:
 
+```
 <game folder>
   NINJA GAIDEN SIGMA2.exe
   dbghelp.dll (This is the mod's main plugin)
@@ -35,10 +36,10 @@ folder, namely "NINJA GAIDEN Σ2". The game folder looks like below after the in
   |
   databin
   |  databin
-  |  plugin
-  |  mods
+  |  ...
   |
   <other files and folders>
+```
 
 "dbghelp.dll" is capable of loading plugins (DLLs) under the "plugin" folder.
 
@@ -80,6 +81,7 @@ great works:
 
 - TeamNinja and KOEI TECMO for NINJA GAIDEN 2 and NINJA GAIDEN SIGMA 2
 - Fiend Busa for NINJA GAIDEN SIGMA 2 BLACK
+- ShowR18 for Custom Move Neo
 
 Special Thanks
 --------------
@@ -87,6 +89,7 @@ Special Thanks
 - enhuhu
 - Guilty
 - ZANGETSU
+- morbis
 
 License
 -------

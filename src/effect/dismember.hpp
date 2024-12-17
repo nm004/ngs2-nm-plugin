@@ -149,6 +149,9 @@ struct limb_appearance_timer {
   uint64_t data0x68;
 };
 
+void
+update_NodeObj_visibility (struct model_node_layer *nl, uint8_t visibility, bool is_top);
+
 // This function is called when dismemberment happens. This updates the visibility of
 // SUP_* NodeObj that has nodeobj_id as its ID. This makes parts of the body
 // separated from the body.

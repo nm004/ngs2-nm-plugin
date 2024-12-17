@@ -9,7 +9,6 @@
 
 #define WIN32_LEAN_AND_MEAN
 
-#include "distormx.h"
 #include <windows.h>
 #include <type_traits>
 #include <algorithm>
@@ -17,16 +16,16 @@
 #include <bit>
 #include <cassert>
 #include <cstdint>
-
+#include <cstddef>
 
 namespace nm::util::detail {
 
 PIMAGE_NT_HEADERS64
 get_nt_headers ()
 {
-  auto base_addr {reinterpret_cast<uintptr_t> (GetModuleHandle (nullptr))};
-  auto pehdr_ofs {*reinterpret_cast<uint32_t *> (base_addr + 0x3c)};
-  return reinterpret_cast<PIMAGE_NT_HEADERS64> (base_addr + pehdr_ofs);
+  auto base {reinterpret_cast<uintptr_t> (GetModuleHandle (nullptr))};
+  auto pehdr_ofs {*reinterpret_cast<uint32_t *> (base + 0x3c)};
+  return reinterpret_cast<PIMAGE_NT_HEADERS64> (base + pehdr_ofs);
 }
 
 } // namespace nm::util::detail
@@ -51,33 +50,31 @@ enum class ImageId : unsigned {
 inline const ImageId image_id {util::detail::get_nt_headers ()->OptionalHeader.SizeOfCode};
 inline const uintptr_t base_of_image {reinterpret_cast<uintptr_t> (GetModuleHandle (nullptr))};
 
-template <typename... T>
-constexpr std::array<uint8_t, (sizeof (T) + ... )>
-concat(T &&... x) noexcept
+template <size_t N>
+using Bytes = std::array<std::byte, N>;
+
+constexpr auto
+make_bytes(auto &&... x) noexcept
 {
-  std::array<uint8_t, (sizeof (T) + ... )> result;
-  std::size_t index {0};
-  ((std::copy_n(std::bit_cast<std::array<uint8_t, sizeof (T)>> (x).begin (),
-                sizeof (T), result.begin () + index),
-    index += sizeof (T)),...);
-  return result;
+  return Bytes<sizeof... (x)> { static_cast<std::byte> (x)... };
 }
 
-template <size_t N>
-using Bytes = std::array<uint8_t, N>;
-
-template <typename... T>
-constexpr Bytes<sizeof...(T)>
-make_bytes(T &&... x) noexcept
+constexpr auto
+concat(auto &&... x) noexcept
 {
-  return concat(static_cast<uint8_t> (x)...);
+  using namespace std;
+
+  Bytes<(sizeof (x) + ...)> result;
+  size_t index {0};
+  ((copy_n(bit_cast<Bytes<sizeof (x)>> (x).begin (), sizeof (x), result.begin () + index),
+    index += sizeof (x)), ...);
+  return result;
 }
 
 template <typename T>
 class Patch {
 public:
-  static_assert (std::is_trivially_copyable<T>::value == true,
-		 "content type must be memcpy-able.");
+  static_assert (std::is_trivially_copyable<T>::value, "content type must be memcpy-able.");
 
   Patch () = delete;
   Patch (const Patch &) = delete;
@@ -85,13 +82,23 @@ public:
 
   constexpr
   Patch (uintptr_t base, uintptr_t rva, const T &content)
-    : m_dst {std::bit_cast<void *> (base + rva)},
-      m_content {content}
+    : m_dst {reinterpret_cast<void *> (base + rva)}
   {
-    m_buf = new T;
+    using namespace std;
+
+    if constexpr (is_array<T>::value)
+      {
+	copy_n (content, size (content), m_content);
+	m_buf = new T[size (content)];
+      }
+    else
+      {
+        m_content = content;
+	m_buf = new T;
+      }
     BOOL r {ReadProcessMemory (GetCurrentProcess (), m_dst, m_buf, sizeof (T), nullptr)};
-    assert(r);
-    write (&m_content);
+    assert (r);
+    write (m_content);
   }
 
   constexpr
@@ -101,42 +108,42 @@ public:
   constexpr
   ~Patch ()
   {
-    write (m_buf);
-    delete m_buf;
-    m_buf = nullptr;
+    write (*m_buf);
+    if constexpr (std::is_array<T>::value)
+	delete[] m_buf;
+    else
+	delete m_buf;
   }
 
-  constexpr const T *
-  old_content () const { return m_buf; }
+  constexpr const T &
+  old_content () const { return *m_buf; }
+
+  constexpr const uintptr_t
+  get_dest_va () const { return reinterpret_cast<uintptr_t>(m_dst); }
 
 private:
   // This forcibly overwrites the memory.
   void
-  write (const T *src) const
+  write (const T &src) const
   {
     DWORD flOldProtect;
     VirtualProtect (m_dst, sizeof (T), PAGE_EXECUTE_READWRITE, &flOldProtect);
-    BOOL r {WriteProcessMemory (GetCurrentProcess (), m_dst, src, sizeof (T), nullptr)};
+    BOOL r {WriteProcessMemory (GetCurrentProcess (), m_dst, &src, sizeof (T), nullptr)};
     assert(r);
     VirtualProtect (m_dst, sizeof (T), flOldProtect, &flOldProtect);
   }
 
   void *m_dst;
   T m_content;
-  std::remove_const<T>::type *m_buf {nullptr};
+  std::remove_const<T>::type *m_buf;
 };
 
-class CallOffsetPatch : public Patch<uint32_t>
-{
-public:
-  CallOffsetPatch (uintptr_t call_rva, uintptr_t callee_rva)
-    : Patch<uint32_t> {call_rva+1, static_cast<uint32_t> (callee_rva - (call_rva + 5))} {}
-};
-
-// This does not provide trampoline() function.
+// This does not provide call() function.
 // Hooking is done by direct jump.
 template <typename T>
 class SimpleInlineHook {
+  static_assert (std::is_function<T>::value, "type T must be function type.");
+
 public:
   SimpleInlineHook () = delete;
   SimpleInlineHook (const SimpleInlineHook &) = delete;
@@ -144,75 +151,46 @@ public:
 
   constexpr
   SimpleInlineHook (uintptr_t base, uintptr_t target_func, uintptr_t callback_func)
-    : patch {base, target_func,
+    : m_patch {base, target_func,
 	    // mov rax, imm
 	    // jmp rax
 	    concat(make_bytes (0x48, 0xb8), callback_func,
 		   make_bytes (0xff, 0xe0))} {}
 
   constexpr
-  SimpleInlineHook (T target_func, T callback_func)
-    : SimpleInlineHook {0, reinterpret_cast<uintptr_t> (target_func), reinterpret_cast<uintptr_t> (callback_func)} {}
+  SimpleInlineHook (T* func_rva, T* callback_func)
+    : SimpleInlineHook {0, reinterpret_cast<uintptr_t> (func_rva), reinterpret_cast<uintptr_t> (callback_func)} {}
 
   constexpr
-  SimpleInlineHook (uintptr_t target_func, T callback_func)
-    : SimpleInlineHook {base_of_image, target_func, reinterpret_cast<uintptr_t> (callback_func)} {}
+  SimpleInlineHook (uintptr_t func_rva, T* callback_func)
+    : SimpleInlineHook {base_of_image, func_rva, reinterpret_cast<uintptr_t> (callback_func)} {}
 
 private:
-  Patch<Bytes<2 + sizeof (uintptr_t) + 2>> patch;
-};
-
-template <typename T>
-class InlineHook {
-public:
-  InlineHook () = delete;
-  InlineHook (const InlineHook &) = delete;
-  InlineHook & operator= (const InlineHook &) = delete;
-
-  constexpr
-  InlineHook (uintptr_t base, uintptr_t target_func, T callback_func)
-    : m_dst {reinterpret_cast<T> (base + target_func)}, m_cb {callback_func}
-  {
-    int r {distormx_hook (reinterpret_cast<void **> (&m_dst), reinterpret_cast<void *> (m_cb))};
-    assert(r);
-  }
-
-  constexpr
-  InlineHook (T target_func, T callback_func)
-    : InlineHook {0, target_func, callback_func} {}
-
-  constexpr
-  InlineHook (uintptr_t target_func, T callback_func)
-    : InlineHook {base_of_image, target_func, callback_func} {}
-
-  constexpr
-  ~InlineHook ()
-  {
-    distormx_unhook (reinterpret_cast<void *> (m_dst));
-  }
-
-  constexpr
-  T trampoline () const { return m_dst; }
-
-private:
-  T m_dst;
-  T m_cb;
+  Patch<Bytes<2 + sizeof (uintptr_t) + 2>> m_patch;
 };
 
 template <typename T>
 class VFPHook {
-  Patch<uintptr_t> patch;
+  static_assert (std::is_function<T>::value, "type T must be function type.");
+
 public:
   VFPHook () = delete;
   VFPHook (const VFPHook &) = delete;
   VFPHook & operator= (const VFPHook &) = delete;
 
   constexpr
-  VFPHook (uintptr_t target_vfp, T callback_func)
-    : patch {target_vfp, reinterpret_cast<uintptr_t> (callback_func)} {}
+  VFPHook (uintptr_t vfp_rva, T* callback_func)
+    : m_patch {base_of_image, vfp_rva, reinterpret_cast<uintptr_t> (callback_func)} {}
 
-  constexpr
-  T trampoline () const { return reinterpret_cast<T> (*patch.old_content ()); }
+  constexpr auto
+  call (auto &&... args) const
+    {
+      auto f = reinterpret_cast<T *> (m_patch.old_content ());
+      return f (std::forward<decltype (args)> (args)...);
+    }
+
+private:
+  Patch<uintptr_t> m_patch;
 };
 
 } // namespace nm

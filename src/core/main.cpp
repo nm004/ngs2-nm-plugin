@@ -4,17 +4,12 @@
  * Master Collection NM Plugin.
  */
 
-#if defined(__MINGW32__)
-#  if defined(NDEBUG)
-#    define DLLEXPORT __declspec (dllexport)
-#  else
-#    define DLLEXPORT
-#  endif
+#if defined(_MSVC_LANG)
+# define DLLEXPORT __declspec (dllexport)
+# define WIN32_LEAN_AND_MEAN
 #else
-#  define DLLEXPORT __declspec (dllexport)
+# define DLLEXPORT
 #endif
-
-#define WIN32_LEAN_AND_MEAN
 
 #include "util.hpp"
 #include <windows.h>
@@ -23,38 +18,25 @@
 #include <cstdint>
 #include <cassert>
 
-#if !defined(NDEBUG)
-#include <iostream>
-#endif
-
 using namespace nm;
+using namespace std;
 
 namespace {
 
-void load_plugins ();
-BOOL init (LPCWSTR);
+BOOL pre_init (LPCWSTR);
 
-// This is needed to keep SteamDRM from wrongly decoding our
-// codes. We inject our codes after the decoding phase by hooking
-// SetCurrentDirectoryW.
-SimpleInlineHook<decltype (SetCurrentDirectoryW) *> *SetCurrentDirectoryW_hook
-	= new SimpleInlineHook {SetCurrentDirectoryW, init};
+SimpleInlineHook<decltype (SetCurrentDirectoryW)> *SetCurrentDirectoryW_hook
+  = new SimpleInlineHook {SetCurrentDirectoryW, pre_init};
 
-// check_dlls returns true if the number of loaded modules (exe + dlls)
-// in the executable's directory is equal to 2. Otherwise, it returns false.
-// We make it always return true.
 bool check_dlls ();
-SimpleInlineHook<decltype (check_dlls) *> *check_dlls_hook;
+SimpleInlineHook<decltype (check_dlls)> *check_dlls_hook;
 
+// "check_dlls()" is called from WinMain. WinMain expects that "check_dlls()" returns true to
+// continue the process, otherwise it aborts the process.
+//
+// We load plugins here. This always returns true.
 bool
 check_dlls ()
-{
-  delete check_dlls_hook;
-  return true;
-}
-
-void
-load_plugins ()
 {
   // Dll search paths starting from the current directory
   const TCHAR *search_paths[] = {
@@ -81,20 +63,22 @@ load_plugins ()
       } while (FindNextFile(hFindFile, &findFileData));
       FindClose (hFindFile);
     }
+
+  delete check_dlls_hook;
+  return true;
 }
 
+// This is needed to keep SteamDRM from wrongly decoding our codes.
+// We postpone the execution of our codes by hooking SetCurrentDirectoryW, which
+// is called from the WinMain function.
 BOOL
-init (LPCWSTR lpPathName)
+pre_init (LPCWSTR lpPathName)
 {
-  using namespace std;
-  assert((cout << "INIT: core" << endl, 1));
-
-  delete SetCurrentDirectoryW_hook;
-  BOOL r = SetCurrentDirectoryW (lpPathName);
-  load_plugins ();
-
   switch (image_id)
     {
+    case ImageId::NGS1SteamAE:
+      check_dlls_hook = new SimpleInlineHook {0x571fd0, check_dlls};
+      break;
     case ImageId::NGS2SteamAE:
       check_dlls_hook = new SimpleInlineHook {0xb5c460, check_dlls};
       break;
@@ -103,7 +87,8 @@ init (LPCWSTR lpPathName)
       break;
     }
 
-  return r;
+  delete SetCurrentDirectoryW_hook;
+  return SetCurrentDirectoryW (lpPathName);
 }
 
 } // namespace
