@@ -8,9 +8,7 @@
 #define NGS2_NM_PLUGIN_EFFECT_DISMEMBER_H
 
 #include "util.hpp"
-#include <algorithm>
-#include <bit>
-#include <tuple>
+#include <utility>
 #include <cstdint>
 
 namespace nm {
@@ -114,41 +112,6 @@ struct model_geo {
   // imcomplete
 };
 
-// const uintptr_t number_of_delimbed_limbs_list = base_of_image + 0x21b3000;
-// const uintptr_t limb_appearance_timer_list = base_of_image + 0x6426880;
-// we don't use this struct for now, but keep this for reference.
-struct limb_appearance_timer {
-  uint32_t is_timer_used;
-  uint32_t _maybe_nodeobj_item_id;
-  uint32_t data0x8;
-  uint32_t data0xc;
-
-  uintptr_t hielay_item;
-  uint32_t data0x18;
-  uint32_t data0x1c;
-
-  uintptr_t _maybe_limb_pos_matrix;
-  uint64_t data0x28;
-
-  uint32_t data0x30;
-  uint32_t data0x34;
-  uint32_t data0x38;
-  uint32_t data0x3c;
-
-  uint32_t data0x40;
-  uint32_t data0x44;
-  uint32_t data0x48;
-  uint32_t _maybe_part_id;
-
-  uint32_t data0x50;
-  uint32_t data0x54;
-  uintptr_t _maybe_another_limb_pos_matrix;
-
-  uint32_t elapsed_time;
-  uint32_t time_limit;
-  uint64_t data0x68;
-};
-
 void
 update_NodeObj_visibility (struct model_node_layer *nl, uint8_t visibility, bool is_top);
 
@@ -211,57 +174,44 @@ update_NodeObj_visibility (struct model_node_layer *nl, uint8_t visibility, bool
     }
 }
 
-// This is called from trigger_BloodCrushRootEffect internally.
-// It returns the OPTscatN NodeObj indices in the TMC data.
-// The target (enemy's) TMC data is obtained from the first param.
-// We have reimplemented this function because the original function has a bug.
+// It returns the OPTscatN NodeObj indices in the TMC data. The target enemy's TMC
+// data is obtained from the first param. We have reimplemented this function because
+// the original function has a bug, which return immedeately search first 0x1f nodes.
 template <uintptr_t model_tmc_relation_offset_list_rva>
 int
-get_OPTscat_indices (struct model &mdl, uint32_t *out_indices)
+get_OPTscat_indices (struct model &mdl, uint32_t *indices_out)
 {
   using namespace std;
   using namespace nm;
 
-  uintptr_t model_tmc_relation_offset_list
-    = base_of_image + model_tmc_relation_offset_list_rva;
+  uintptr_t model_tmc_relation_offset_list = base_of_image + model_tmc_relation_offset_list_rva;
   uintptr_t mt_rel_ofs = reinterpret_cast<uintptr_t *>
     (model_tmc_relation_offset_list)[mdl.info_idx];
 
-  auto &r = **reinterpret_cast<model_tmc_relation **>
-    (*mdl.p_state + mt_rel_ofs);
+  uintptr_t tmc = (*reinterpret_cast<model_tmc_relation **> (*mdl.p_state + mt_rel_ofs))->tmc1;
+  uint32_t *offset_table = reinterpret_cast<uint32_t *> (tmc + *reinterpret_cast<uintptr_t *>(tmc + 0x20));
+  uint32_t start_of_optional_data = *reinterpret_cast<uint32_t *>(tmc + 0x40);
 
-  uint32_t *tmc_ofs_tbl = reinterpret_cast<uint32_t *>
-    (r.tmc1 + *reinterpret_cast<uintptr_t *>(r.tmc1 + 0x20));
+  // Optscat's type is 5.
+  // first = num of nodes, second = first index of the nodes.
+  auto &header_of_opt = reinterpret_cast<pair<uint16_t, uint16_t> *> (tmc + offset_table[start_of_optional_data])[5];
+  uint32_t *obj_type_info = reinterpret_cast<uint32_t *> (tmc + offset_table[start_of_optional_data + 1]);
 
-  struct nodeobj_type_table_info {
-    uint16_t idx0;
-    uint16_t size;
-  };
-
-  uint32_t tti_idx = *reinterpret_cast<uint32_t *>(r.tmc1+0x40);
-  // OptscatN is type 5 NodeObj.
-  auto &ti = reinterpret_cast<struct nodeobj_type_table_info *>
-    (r.tmc1 + tmc_ofs_tbl[tti_idx])[5];
-
-  // The type offset table is next to the info list
-  uint32_t *tt_ofs = reinterpret_cast<uint32_t *>
-    (r.tmc1 + tmc_ofs_tbl[tti_idx + 1]);
-
-  // They expect the size of out_indices is at most 16.
+  // They expect the size of indices_out is 16.
   int n = 0;
-  for (int i = 0; n < 0x10 && i < ti.size; i++)
+  for (int i = 0; n < 0x10 && i < header_of_opt.second; i++)
     {
-      uint32_t j = ti.idx0 + i;
+      int j = header_of_opt.first + i;
 
       // The address calculation below looks odd, though, it is what it is.
-      uint32_t *type = reinterpret_cast<uint32_t *>
-	(reinterpret_cast<uintptr_t>(&tt_ofs[j]) + (tt_ofs[j] & 0x0fffffff));
+      uint32_t &x = obj_type_info[j];
+      uint32_t *t = reinterpret_cast<uint32_t *> (reinterpret_cast<uintptr_t> (&x) + (x & 0x0fffffff));
 
-      // type[0] is major type, type[1] is sub type, and type[2] is some sequential id (if exists).
-      // subtype of OptscatN is 3.
-      if (type[1] == 3)
+      // t[0] is major type, t[1] is sub type, and t[2] is sequential id (if exists).
+      // sub type of OptscatN is 3.
+      if (t[1] == 3)
 	{
-	  out_indices[n++] = j;
+	  indices_out[n++] = j;
 	}
     }
 

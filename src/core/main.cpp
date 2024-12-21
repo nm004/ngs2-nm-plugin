@@ -31,6 +31,8 @@ SimpleInlineHook<decltype (SetCurrentDirectoryW)> *SetCurrentDirectoryW_hook
 bool check_dlls ();
 SimpleInlineHook<decltype (check_dlls)> *check_dlls_hook;
 
+Patch<Bytes<7>> *patch1;
+
 // "check_dlls()" is called from WinMain. WinMain expects that "check_dlls()" returns true to
 // continue the process, otherwise it aborts the process.
 //
@@ -78,12 +80,17 @@ pre_init (LPCWSTR lpPathName)
     {
     case ImageId::NGS1SteamAE:
       check_dlls_hook = new SimpleInlineHook {0x571fd0, check_dlls};
+      // This allows users to run multiple instances of the game.
+      // xor r8, r8; nop4
+      patch1 = new Patch {0x056c463, make_bytes (0x4d, 0x31, 0xc0,  0x0f, 0x1f, 0x40, 0x00)};
       break;
     case ImageId::NGS2SteamAE:
       check_dlls_hook = new SimpleInlineHook {0xb5c460, check_dlls};
+      patch1 = new Patch {0x1340d3b, make_bytes (0x4d, 0x31,  0xc0, 0x0f, 0x1f, 0x40, 0x00)};
       break;
     case ImageId::NGS2SteamJP:
       check_dlls_hook = new SimpleInlineHook {0xb5c4b0, check_dlls};
+      patch1 = new Patch {0x1340b0b, make_bytes (0x4d, 0x31,  0xc0, 0x0f, 0x1f, 0x40, 0x00)};
       break;
     }
 

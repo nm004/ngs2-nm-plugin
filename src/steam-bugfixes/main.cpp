@@ -13,7 +13,6 @@
 
 #include "util.hpp"
 #include <cstdint>
-#include <array>
 
 using namespace nm;
 using namespace std;

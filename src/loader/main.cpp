@@ -45,28 +45,26 @@ struct chunk_info {
   uint32_t data0x1c;
 };
 
-LPCRITICAL_SECTION lpCriticalSectionOfRenderingThread;
-
 struct chunk_info *get_chunk_info (ProductionPackage *, uint32_t);
 bool load_data (ProductionPackage *, uintptr_t, struct chunk_info *, void *);
-HANDLE open_mod_data (uint32_t);
+HANDLE open_mod_file (uint32_t);
 
 void *(*tmcl_malloc)(void *, uint32_t);
 VFPHook<decltype (get_chunk_info)> *get_chunk_info_hook;
 VFPHook<decltype (load_data)> *load_data_hook;
-map<uint32_t, struct chunk_info> *chunk_index_to_new_chunk_info;
-map<struct chunk_info *, uint32_t> *new_chunk_info_to_chunk_index;
+map<uint32_t, struct chunk_info> *chunk_index_to_chunk_info;
+map<struct chunk_info *, uint32_t> *chunk_info_ptr_to_chunk_index;
 
 bool
 load_data_ngs1 (ProductionPackage *thisptr, uintptr_t param2, struct chunk_info *ci, void *out_buf)
 {
   HANDLE hFile;
 
-  auto itr = new_chunk_info_to_chunk_index->find(ci);
-  if (itr == new_chunk_info_to_chunk_index->end())
+  auto itr = chunk_info_ptr_to_chunk_index->find(ci);
+  if (itr == chunk_info_ptr_to_chunk_index->end())
     goto BAIL;
 
-  hFile = open_mod_data (itr->second);
+  hFile = open_mod_file (itr->second);
   if (hFile == INVALID_HANDLE_VALUE)
     goto BAIL;
 
@@ -96,11 +94,11 @@ load_data (ProductionPackage *thisptr, uintptr_t param2, struct chunk_info *ci, 
 {
   HANDLE hFile;
 
-  auto itr = new_chunk_info_to_chunk_index->find(ci);
-  if (itr == new_chunk_info_to_chunk_index->end())
+  auto itr = chunk_info_ptr_to_chunk_index->find(ci);
+  if (itr == chunk_info_ptr_to_chunk_index->end())
     goto BAIL;
 
-  hFile = open_mod_data (itr->second);
+  hFile = open_mod_file (itr->second);
   if (hFile == INVALID_HANDLE_VALUE)
     goto BAIL;
 
@@ -117,33 +115,33 @@ BAIL:
 struct chunk_info *
 get_chunk_info (ProductionPackage *thisptr, uint32_t index)
 {
+  auto e = chunk_index_to_chunk_info->find (index);
+
+  if (e != chunk_index_to_chunk_info->end ())
+    {
+      chunk_info_ptr_to_chunk_index->erase (&e->second);
+      chunk_index_to_chunk_info->erase (e);
+    }
+
   auto ci = get_chunk_info_hook->call (thisptr, index);
-  if (!ci)
-      return ci;
 
   HANDLE hFile;
-  if ((hFile = open_mod_data (index)) == INVALID_HANDLE_VALUE)
-    {
-      auto x = chunk_index_to_new_chunk_info->find(index);
-      if (x != chunk_index_to_new_chunk_info->end())
-	{
-	  new_chunk_info_to_chunk_index->erase (&x->second);
-	  chunk_index_to_new_chunk_info->erase (x);
-	}
-      return ci;
-    }
+  if (!ci || (hFile = open_mod_file (index)) == INVALID_HANDLE_VALUE)
+    return ci;
+
+  ci = &chunk_index_to_chunk_info->insert (pair (index, *ci)).first->second;
+  chunk_info_ptr_to_chunk_index->insert (pair (ci, index));
 
   LARGE_INTEGER size;
   GetFileSizeEx (hFile, &size);
-  CloseHandle (hFile);
-  ci = &chunk_index_to_new_chunk_info->insert (pair(index, *ci)).first->second;
   ci->decompressed_size = size.u.LowPart;
-  new_chunk_info_to_chunk_index->insert (pair(ci, index));
+
+  CloseHandle (hFile);
   return ci;
 }
 
 HANDLE
-open_mod_data (uint32_t index)
+open_mod_file (uint32_t index)
 {
   TCHAR name[16];
   StringCbPrintf (name, sizeof (name), TEXT ("%05d.dat"), index);
@@ -170,15 +168,15 @@ open_mod_data (uint32_t index)
 void
 init ()
 {
-  chunk_index_to_new_chunk_info = new map<uint32_t, chunk_info> {};
-  new_chunk_info_to_chunk_index = new map<chunk_info *, uint32_t> {};
+  chunk_index_to_chunk_info = new map<uint32_t, chunk_info> {};
+  chunk_info_ptr_to_chunk_index = new map<chunk_info *, uint32_t> {};
 
   switch (image_id)
     {
     case ImageId::NGS1SteamAE:
       load_data_hook = new VFPHook {0x0994b50, load_data};
       get_chunk_info_hook = new VFPHook {0x0994b58, get_chunk_info};
-      tmcl_malloc = reinterpret_cast<decltype(tmcl_malloc)>(base_of_image + 0x07e5630);
+      tmcl_malloc = reinterpret_cast<decltype (tmcl_malloc)>(base_of_image + 0x07e5630);
       break;
     case ImageId::NGS2SteamAE:
       load_data_hook = new VFPHook {0x18ef6f0, load_data};
@@ -204,8 +202,10 @@ DllMain (HINSTANCE hinstDLL,
       init ();
       break;
     case DLL_PROCESS_DETACH:
-      delete chunk_index_to_new_chunk_info;
-      delete new_chunk_info_to_chunk_index;
+      delete chunk_index_to_chunk_info;
+      delete chunk_info_ptr_to_chunk_index;
+      delete load_data_hook;
+      delete get_chunk_info_hook;
     default:
       break;
     }
