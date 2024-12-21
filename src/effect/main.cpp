@@ -175,8 +175,8 @@ init ()
 	// The new specified time is 5 min.
 	// TODO: use the other float value address instead of setting new float value
 	// because other functions use it too.
-	patch10 = new Patch {0x1907cf4, 60.f * 5.f};
-	//patch10 = new Patch {0x145f459 + 5, 0x1907d98 - (0x145f459 + 9)};
+	patch10 = new Patch {0x1907cf4, 60.f * 60.f * 5.f};
+	//patch10 = new Patch {0x145f459 + 5, 0x1907d94 - (0x145f459 + 9)};
 
 	// Credit: enhuhu
 	// This disables EFF_CommonIzunaBloodExp which produces dim purple effect.
@@ -226,8 +226,8 @@ init ()
 	patch7 = new Patch {0x14150b7 + 1, 0x0c0fcb0 - (0x14150b7 + 5)};
 	patch8 = new Patch {0x1457f15 + 1, 3600};
 	patch9 = new Patch {0x1457dd1 + 6, 0};
-	patch10 = new Patch {0x1906cf4, 60.f * 5.f};
-	//patch10 = new Patch {0x145f009 + 5, 0x1906d98 - (0x145f009 + 9)};
+	patch10 = new Patch {0x1906cf4, 60.f * 60.f * 5.f};
+	//patch10 = new Patch {0x145f009 + 5, 0x1906d94 - (0x145f009 + 9)};
 	patch11 = new Patch {0x10206f0, uint8_t {0xc3}};
 	patch12 = new Patch {0x10200c0, uint8_t {0xc3}};
       }

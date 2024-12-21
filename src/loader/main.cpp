@@ -46,17 +46,17 @@ struct chunk_info {
 };
 
 struct chunk_info *get_chunk_info (ProductionPackage *, uint32_t);
-bool load_data (ProductionPackage *, uintptr_t, struct chunk_info *, void *);
+bool load_data (ProductionPackage *, uintptr_t, const struct chunk_info *, void *);
 HANDLE open_mod_file (uint32_t);
 
 void *(*tmcl_malloc)(void *, uint32_t);
 VFPHook<decltype (get_chunk_info)> *get_chunk_info_hook;
 VFPHook<decltype (load_data)> *load_data_hook;
 map<uint32_t, struct chunk_info> *chunk_index_to_chunk_info;
-map<struct chunk_info *, uint32_t> *chunk_info_ptr_to_chunk_index;
+map<const struct chunk_info *, uint32_t> *chunk_info_ptr_to_chunk_index;
 
 bool
-load_data_ngs1 (ProductionPackage *thisptr, uintptr_t param2, struct chunk_info *ci, void *out_buf)
+load_data_ngs1 (ProductionPackage *thisptr, uintptr_t param2, const struct chunk_info *ci, void *out_buf)
 {
   HANDLE hFile;
 
@@ -90,12 +90,12 @@ BAIL:
 
 // param2 is never used.
 bool
-load_data (ProductionPackage *thisptr, uintptr_t param2, struct chunk_info *ci, void *out_buf)
+load_data (ProductionPackage *thisptr, uintptr_t param2, const struct chunk_info *ci, void *out_buf)
 {
   HANDLE hFile;
 
-  auto itr = chunk_info_ptr_to_chunk_index->find(ci);
-  if (itr == chunk_info_ptr_to_chunk_index->end())
+  auto itr = chunk_info_ptr_to_chunk_index->find (ci);
+  if (itr == chunk_info_ptr_to_chunk_index->end ())
     goto BAIL;
 
   hFile = open_mod_file (itr->second);
@@ -120,7 +120,7 @@ get_chunk_info (ProductionPackage *thisptr, uint32_t index)
   if (e != chunk_index_to_chunk_info->end ())
     {
       chunk_info_ptr_to_chunk_index->erase (&e->second);
-      chunk_index_to_chunk_info->erase (e);
+      chunk_index_to_chunk_info->erase (index);
     }
 
   auto ci = get_chunk_info_hook->call (thisptr, index);
@@ -169,7 +169,7 @@ void
 init ()
 {
   chunk_index_to_chunk_info = new map<uint32_t, chunk_info> {};
-  chunk_info_ptr_to_chunk_index = new map<chunk_info *, uint32_t> {};
+  chunk_info_ptr_to_chunk_index = new map<const chunk_info *, uint32_t> {};
 
   switch (image_id)
     {
