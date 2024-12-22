@@ -45,26 +45,25 @@ struct chunk_info {
   uint32_t data0x1c;
 };
 
-struct chunk_info *get_chunk_info (ProductionPackage *, uint32_t);
+struct chunk_info *get_chunk_info (ProductionPackage *, int32_t);
 bool load_data (ProductionPackage *, uintptr_t, const struct chunk_info *, void *);
-HANDLE open_mod_file (uint32_t);
+HANDLE open_mod_file (int32_t);
 
 void *(*tmcl_malloc)(void *, uint32_t);
 VFPHook<decltype (get_chunk_info)> *get_chunk_info_hook;
 VFPHook<decltype (load_data)> *load_data_hook;
-map<uint32_t, struct chunk_info> *chunk_index_to_chunk_info;
-map<const struct chunk_info *, uint32_t> *chunk_info_ptr_to_chunk_index;
+map<int64_t, pair<int32_t, uint32_t>> *chunk_offset_to_index_and_original_size;
 
 bool
 load_data_ngs1 (ProductionPackage *thisptr, uintptr_t param2, const struct chunk_info *ci, void *out_buf)
 {
   HANDLE hFile;
 
-  auto itr = chunk_info_ptr_to_chunk_index->find(ci);
-  if (itr == chunk_info_ptr_to_chunk_index->end())
+  auto itr = chunk_offset_to_index_and_original_size->find(ci->offset_to_data);
+  if (itr == chunk_offset_to_index_and_original_size->end() || !itr->second.second)
     goto BAIL;
 
-  hFile = open_mod_file (itr->second);
+  hFile = open_mod_file (itr->second.first);
   if (hFile == INVALID_HANDLE_VALUE)
     goto BAIL;
 
@@ -94,11 +93,11 @@ load_data (ProductionPackage *thisptr, uintptr_t param2, const struct chunk_info
 {
   HANDLE hFile;
 
-  auto itr = chunk_info_ptr_to_chunk_index->find (ci);
-  if (itr == chunk_info_ptr_to_chunk_index->end ())
+  auto itr = chunk_offset_to_index_and_original_size->find (ci->offset_to_data);
+  if (itr == chunk_offset_to_index_and_original_size->end() || !itr->second.second)
     goto BAIL;
 
-  hFile = open_mod_file (itr->second);
+  hFile = open_mod_file (itr->second.first);
   if (hFile == INVALID_HANDLE_VALUE)
     goto BAIL;
 
@@ -113,35 +112,40 @@ BAIL:
 }
 
 struct chunk_info *
-get_chunk_info (ProductionPackage *thisptr, uint32_t index)
+get_chunk_info (ProductionPackage *thisptr, int32_t index)
 {
-  auto e = chunk_index_to_chunk_info->find (index);
-
-  if (e != chunk_index_to_chunk_info->end ())
-    {
-      chunk_info_ptr_to_chunk_index->erase (&e->second);
-      chunk_index_to_chunk_info->erase (index);
-    }
-
   auto ci = get_chunk_info_hook->call (thisptr, index);
-
-  HANDLE hFile;
-  if (!ci || (hFile = open_mod_file (index)) == INVALID_HANDLE_VALUE)
+  if (!ci)
     return ci;
 
-  ci = &chunk_index_to_chunk_info->insert (pair (index, *ci)).first->second;
-  chunk_info_ptr_to_chunk_index->insert (pair (ci, index));
+  auto e = chunk_offset_to_index_and_original_size->find (ci->offset_to_data);
+
+  HANDLE hFile;
+  if ((hFile = open_mod_file (index)) == INVALID_HANDLE_VALUE)
+    {
+      if (e != chunk_offset_to_index_and_original_size->end ())
+	{
+	  ci->decompressed_size = e->second.second;
+	  e->second.second = 0;
+	}
+
+      return ci;
+    }
 
   LARGE_INTEGER size;
   GetFileSizeEx (hFile, &size);
-  ci->decompressed_size = size.u.LowPart;
+  if (e == chunk_offset_to_index_and_original_size->end ())
+    chunk_offset_to_index_and_original_size->emplace (ci->offset_to_data, pair {index, ci->decompressed_size});
+  else if (!e->second.second)
+    e->second.second = ci->decompressed_size;
 
+  ci->decompressed_size = size.u.LowPart;
   CloseHandle (hFile);
   return ci;
 }
 
 HANDLE
-open_mod_file (uint32_t index)
+open_mod_file (int32_t index)
 {
   TCHAR name[16];
   StringCbPrintf (name, sizeof (name), TEXT ("%05d.dat"), index);
@@ -168,8 +172,7 @@ open_mod_file (uint32_t index)
 void
 init ()
 {
-  chunk_index_to_chunk_info = new map<uint32_t, chunk_info> {};
-  chunk_info_ptr_to_chunk_index = new map<const chunk_info *, uint32_t> {};
+  chunk_offset_to_index_and_original_size = new map<int64_t, pair<int32_t, uint32_t>> {};
 
   switch (image_id)
     {
@@ -202,8 +205,7 @@ DllMain (HINSTANCE hinstDLL,
       init ();
       break;
     case DLL_PROCESS_DETACH:
-      delete chunk_index_to_chunk_info;
-      delete chunk_info_ptr_to_chunk_index;
+      delete chunk_offset_to_index_and_original_size;
       delete load_data_hook;
       delete get_chunk_info_hook;
     default:
