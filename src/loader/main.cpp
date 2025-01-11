@@ -22,14 +22,17 @@
 using namespace nm;
 using namespace std;
 
-namespace {
+namespace
+{
 
-struct ProductionPackage {
-  uintptr_t *vfpt;
+struct ProductionPackage
+{
+  uintptr_t *vft0x0;
   // imcomplete
 };
 
-struct chunk_info {
+struct chunk_info
+{
   int64_t offset_to_data;
   uint32_t decompressed_size;
   uint32_t compressed_size;
@@ -52,15 +55,15 @@ HANDLE open_mod_file (int32_t);
 void *(*tmcl_malloc)(void *, uint32_t);
 VFPHook<decltype (get_chunk_info)> *get_chunk_info_hook;
 VFPHook<decltype (load_data)> *load_data_hook;
-map<int64_t, pair<int32_t, uint32_t>> *chunk_offset_to_index_and_original_size;
+map<const struct chunk_info *, pair<int32_t, uint32_t>> chunk_info_to_index_and_original_size;
 
 bool
 load_data_ngs1 (ProductionPackage *thisptr, uintptr_t param2, const struct chunk_info *ci, void *out_buf)
 {
   HANDLE hFile;
 
-  auto itr = chunk_offset_to_index_and_original_size->find(ci->offset_to_data);
-  if (itr == chunk_offset_to_index_and_original_size->end() || !itr->second.second)
+  auto itr = chunk_info_to_index_and_original_size.find (ci);
+  if (itr == chunk_info_to_index_and_original_size.end () || !itr->second.second)
     goto BAIL;
 
   hFile = open_mod_file (itr->second.first);
@@ -74,7 +77,7 @@ load_data_ngs1 (ProductionPackage *thisptr, uintptr_t param2, const struct chunk
       void *buf = tmcl_malloc (out_buf, ci->decompressed_size);
       if (r = ReadFile (hFile, buf, ci->decompressed_size, &nBytesRead, nullptr))
 	{
-	  auto init_ngs1_tmcl_buf = reinterpret_cast<void (*)(ProductionPackage *, void *, void*)>(*(thisptr->vfpt + 1));
+	  auto init_ngs1_tmcl_buf = reinterpret_cast<void (*)(ProductionPackage *, void *, void*)>(*(thisptr->vft0x0 + 1));
 	  init_ngs1_tmcl_buf (thisptr, out_buf, buf);
 	}
     }
@@ -93,8 +96,8 @@ load_data (ProductionPackage *thisptr, uintptr_t param2, const struct chunk_info
 {
   HANDLE hFile;
 
-  auto itr = chunk_offset_to_index_and_original_size->find (ci->offset_to_data);
-  if (itr == chunk_offset_to_index_and_original_size->end() || !itr->second.second)
+  auto itr = chunk_info_to_index_and_original_size.find (ci);
+  if (itr == chunk_info_to_index_and_original_size.end () || !itr->second.second)
     goto BAIL;
 
   hFile = open_mod_file (itr->second.first);
@@ -118,12 +121,12 @@ get_chunk_info (ProductionPackage *thisptr, int32_t index)
   if (!ci)
     return ci;
 
-  auto e = chunk_offset_to_index_and_original_size->find (ci->offset_to_data);
+  auto e = chunk_info_to_index_and_original_size.find (ci);
 
   HANDLE hFile;
   if ((hFile = open_mod_file (index)) == INVALID_HANDLE_VALUE)
     {
-      if (e != chunk_offset_to_index_and_original_size->end ())
+      if (e != chunk_info_to_index_and_original_size.end ())
 	{
 	  ci->decompressed_size = e->second.second;
 	  e->second.second = 0;
@@ -134,8 +137,8 @@ get_chunk_info (ProductionPackage *thisptr, int32_t index)
 
   LARGE_INTEGER size;
   GetFileSizeEx (hFile, &size);
-  if (e == chunk_offset_to_index_and_original_size->end ())
-    chunk_offset_to_index_and_original_size->emplace (ci->offset_to_data, pair {index, ci->decompressed_size});
+  if (e == chunk_info_to_index_and_original_size.end ())
+    chunk_info_to_index_and_original_size.emplace (ci, pair {index, ci->decompressed_size});
   else if (!e->second.second)
     e->second.second = ci->decompressed_size;
 
@@ -150,9 +153,7 @@ open_mod_file (int32_t index)
   TCHAR name[16];
   StringCbPrintf (name, sizeof (name), TEXT ("%05d.dat"), index);
 
-  const TCHAR *mod_dirs[] = {
-    TEXT("mods\\"),
-  };
+  const TCHAR *mod_dirs[] = { TEXT("mods\\"), };
 
   HANDLE hFile = INVALID_HANDLE_VALUE;
   for (auto &i : mod_dirs)
@@ -172,24 +173,22 @@ open_mod_file (int32_t index)
 void
 init ()
 {
-  chunk_offset_to_index_and_original_size = new map<int64_t, pair<int32_t, uint32_t>> {};
-
   switch (image_id)
-    {
-    case ImageId::NGS1SteamAE:
-      load_data_hook = new VFPHook {0x0994b50, load_data};
-      get_chunk_info_hook = new VFPHook {0x0994b58, get_chunk_info};
-      tmcl_malloc = reinterpret_cast<decltype (tmcl_malloc)>(base_of_image + 0x07e5630);
-      break;
-    case ImageId::NGS2SteamAE:
-      load_data_hook = new VFPHook {0x18ef6f0, load_data};
-      get_chunk_info_hook = new VFPHook {0x18ef6f8, get_chunk_info};
-      break;
-    case ImageId::NGS2SteamJP:
-      load_data_hook = new VFPHook {0x18ee6f0, load_data};
-      get_chunk_info_hook = new VFPHook {0x18ee6f8, get_chunk_info};
-      break;
-    }
+  {
+  case ImageId::NGS1SteamAE:
+    load_data_hook = new VFPHook {0x0994b50, load_data_ngs1};
+    get_chunk_info_hook = new VFPHook {0x0994b58, get_chunk_info};
+    tmcl_malloc = reinterpret_cast<decltype (tmcl_malloc)>(base_of_image + 0x07e5630);
+    break;
+  case ImageId::NGS2SteamAE:
+    load_data_hook = new VFPHook {0x18ef6f0, load_data};
+    get_chunk_info_hook = new VFPHook {0x18ef6f8, get_chunk_info};
+    break;
+  case ImageId::NGS2SteamJP:
+    load_data_hook = new VFPHook {0x18ee6f0, load_data};
+    get_chunk_info_hook = new VFPHook {0x18ee6f8, get_chunk_info};
+    break;
+  }
 }
 
 } // namespace
@@ -200,16 +199,14 @@ DllMain (HINSTANCE hinstDLL,
 	 LPVOID lpvReserved)
 {
   switch (fdwReason)
-    {
-    case DLL_PROCESS_ATTACH:
-      init ();
-      break;
-    case DLL_PROCESS_DETACH:
-      delete chunk_offset_to_index_and_original_size;
-      delete load_data_hook;
-      delete get_chunk_info_hook;
-    default:
-      break;
-    }
+  {
+  case DLL_PROCESS_ATTACH:
+    init ();
+    break;
+  case DLL_PROCESS_DETACH:
+    break;
+  default:
+    break;
+  }
   return TRUE;
 }

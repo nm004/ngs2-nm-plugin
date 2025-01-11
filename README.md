@@ -7,12 +7,9 @@ This mod currently supports NINJA GAIDEN SIGMA 2 Master Collection on Steam only
 Features
 --------
 
-- Restoring NG2 mutilation gore effects
-- Restoring NG2 crushing gore effects
-- Restoring NG2 bow hit gore effects
-- No micro freezing when you delimb enemies
-- Bodies of non-fiends will never disappear
-- Load additional dll and mod data from a file
+- NG2 gore effects.
+- Built-in mod loader.
+- Fix some critical bugs.
 
 Installation
 ------------
@@ -64,13 +61,6 @@ Development
 cmake -B build .
 make -C build all
 ```
-
-Known bugs
-----------
-
-- Crushing the last enemy may make events delayed (e.g. doors open in a few secs,
-  but not instantly)
-- Robots drops bloodstains instead of oil stains
 
 Acknowledgements
 ----------------

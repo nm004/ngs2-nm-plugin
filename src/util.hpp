@@ -18,7 +18,8 @@
 #include <cstdint>
 #include <cstddef>
 
-namespace nm::util::detail {
+namespace nm::util::detail
+{
 
 PIMAGE_NT_HEADERS64
 get_nt_headers ()
@@ -30,10 +31,12 @@ get_nt_headers ()
 
 } // namespace nm::util::detail
 
-namespace nm {
+namespace nm
+{
 
 // This is currently defined by the size of code.
-enum class ImageId : unsigned {
+enum class ImageId : unsigned
+{
   // for America, Europe and other than East Asia
   NGS1SteamAE = 0x91aa00,
 
@@ -72,7 +75,8 @@ concat(auto &&... x) noexcept
 }
 
 template <typename T>
-class Patch {
+class Patch
+{
 public:
   static_assert (std::is_trivially_copyable<T>::value, "content type must be memcpy-able.");
 
@@ -81,67 +85,70 @@ public:
   Patch & operator= (const Patch &) = delete;
 
   constexpr
-  Patch (uintptr_t base, uintptr_t rva, const T &content)
-    : m_dst {reinterpret_cast<void *> (base + rva)}
+  Patch (void *va, const T &content)
+    : m_va {reinterpret_cast <T *> (va)}
   {
     using namespace std;
-
-    if constexpr (is_array<T>::value)
-      {
-	copy_n (content, size (content), m_content);
-	m_buf = new T[size (content)];
-      }
+    if constexpr (std::is_array<T>::value)
+      copy_n (*m_va, size (content), m_old_content);
     else
-      {
-        m_content = content;
-	m_buf = new T;
-      }
-    BOOL r {ReadProcessMemory (GetCurrentProcess (), m_dst, m_buf, sizeof (T), nullptr)};
-    assert (r);
-    write (m_content);
+      m_old_content = *m_va;
+    write (content);
   }
 
   constexpr
   Patch (uintptr_t rva, const T &content)
-    : Patch {base_of_image, rva, content} {}
+    : Patch {reinterpret_cast <void *> (base_of_image + rva), content} {}
 
   constexpr
   ~Patch ()
   {
-    write (*m_buf);
+    if (m_va)
+      write (m_old_content);
+  }
+
+  Patch&
+  operator= (Patch&& other) noexcept
+  {
+    m_va = other.m_va;
     if constexpr (std::is_array<T>::value)
-	delete[] m_buf;
+      copy_n (*m_va, size (m_old_content), m_old_content);
     else
-	delete m_buf;
+      m_old_content = other.m_old_content;
+    other.m_va = nullptr;
+    return *this;
   }
 
   constexpr const T &
-  old_content () const { return *m_buf; }
+  get_old_content () const { return m_old_content; }
 
-  constexpr const uintptr_t
-  get_dest_va () const { return reinterpret_cast<uintptr_t>(m_dst); }
+  constexpr const T *
+  get_dest_va () const { return m_va; }
 
 private:
-  // This forcibly overwrites the memory.
+  // This forcibly overwrites the content at m_va.
   void
   write (const T &src) const
   {
+    using namespace std;
+
     DWORD flOldProtect;
-    VirtualProtect (m_dst, sizeof (T), PAGE_EXECUTE_READWRITE, &flOldProtect);
-    BOOL r {WriteProcessMemory (GetCurrentProcess (), m_dst, &src, sizeof (T), nullptr)};
-    assert(r);
-    VirtualProtect (m_dst, sizeof (T), flOldProtect, &flOldProtect);
+    VirtualProtect (m_va, sizeof (src), PAGE_EXECUTE_READWRITE, &flOldProtect);
+    if constexpr (std::is_array<T>::value)
+      copy_n (src, size (src), *m_va);
+    else
+      *m_va = src;
+    VirtualProtect (m_va, sizeof (src), flOldProtect, &flOldProtect);
   }
 
-  void *m_dst;
-  T m_content;
-  std::remove_const<T>::type *m_buf;
+  std::remove_const<T>::type *m_va;
+  std::remove_const<T>::type m_old_content;
 };
 
-// This does not provide call() function.
 // Hooking is done by direct jump.
 template <typename T>
-class SimpleInlineHook {
+class SimpleInlineHook
+{
   static_assert (std::is_function<T>::value, "type T must be function type.");
 
 public:
@@ -150,27 +157,49 @@ public:
   SimpleInlineHook & operator= (const SimpleInlineHook &) = delete;
 
   constexpr
-  SimpleInlineHook (uintptr_t base, uintptr_t target_func, uintptr_t callback_func)
-    : m_patch {base, target_func,
-	    // mov rax, imm
-	    // jmp rax
-	    concat(make_bytes (0x48, 0xb8), callback_func,
-		   make_bytes (0xff, 0xe0))} {}
+  SimpleInlineHook (Bytes<16> *target_func, uintptr_t callback_func)
+    // mov rax, imm; jmp rax; padding
+    : m_patch {target_func, concat(make_bytes (0x48, 0xb8), callback_func, make_bytes (0xff, 0xe0), 0x00)} {}
 
   constexpr
-  SimpleInlineHook (T* func_rva, T* callback_func)
-    : SimpleInlineHook {0, reinterpret_cast<uintptr_t> (func_rva), reinterpret_cast<uintptr_t> (callback_func)} {}
+  SimpleInlineHook (T *target_func, T *callback_func)
+    : SimpleInlineHook {reinterpret_cast <Bytes <16> *> (target_func), reinterpret_cast <uintptr_t> (callback_func)} {}
 
   constexpr
-  SimpleInlineHook (uintptr_t func_rva, T* callback_func)
-    : SimpleInlineHook {base_of_image, func_rva, reinterpret_cast<uintptr_t> (callback_func)} {}
+  SimpleInlineHook (uintptr_t func_rva, T *callback_func)
+    : SimpleInlineHook {reinterpret_cast <Bytes <16> *> (base_of_image + func_rva), reinterpret_cast<uintptr_t> (callback_func)} {}
+
+  // This is not thread-safe (but who cares :).
+  constexpr auto
+  call (auto &&... args)
+    {
+      using namespace std;
+
+      auto va = m_patch.get_dest_va ();
+      Bytes <16> code;
+      copy (va->begin (), va->end (), code.begin ());
+      m_patch.~Patch ();
+
+      if constexpr (std::is_same <void, typename invoke_result <T, decltype (args)...>::type>::value)
+	{
+	  reinterpret_cast <T *> (va) (forward<decltype (args)> (args)...);
+	  m_patch = move (Patch {const_cast <Bytes <16> *> (va), code});
+	}
+      else
+	{
+	  auto r = reinterpret_cast <T *> (va) (forward<decltype (args)> (args)...);
+	  m_patch = move (Patch {const_cast <Bytes <16> *> (va), code});
+	  return r;
+	}
+    }
 
 private:
-  Patch<Bytes<2 + sizeof (uintptr_t) + 2>> m_patch;
+  Patch<Bytes <16>> m_patch;
 };
 
 template <typename T>
-class VFPHook {
+class VFPHook
+{
   static_assert (std::is_function<T>::value, "type T must be function type.");
 
 public:
@@ -180,12 +209,12 @@ public:
 
   constexpr
   VFPHook (uintptr_t vfp_rva, T* callback_func)
-    : m_patch {base_of_image, vfp_rva, reinterpret_cast<uintptr_t> (callback_func)} {}
+    : m_patch {reinterpret_cast <void *> (base_of_image + vfp_rva), reinterpret_cast<uintptr_t> (callback_func)} {}
 
   constexpr auto
   call (auto &&... args) const
     {
-      auto f = reinterpret_cast<T *> (m_patch.old_content ());
+      auto f = reinterpret_cast<T *> (m_patch.get_old_content ());
       return f (std::forward<decltype (args)> (args)...);
     }
 

@@ -24,11 +24,10 @@ using namespace std;
 namespace {
 
 BOOL pre_init (LPCWSTR);
+bool check_dlls ();
 
 SimpleInlineHook<decltype (SetCurrentDirectoryW)> *SetCurrentDirectoryW_hook
   = new SimpleInlineHook {SetCurrentDirectoryW, pre_init};
-
-bool check_dlls ();
 SimpleInlineHook<decltype (check_dlls)> *check_dlls_hook;
 
 Patch<Bytes<7>> *patch1;
@@ -41,9 +40,7 @@ bool
 check_dlls ()
 {
   // Dll search paths starting from the current directory
-  const TCHAR *search_paths[] = {
-    TEXT("plugin\\"),
-  };
+  const TCHAR *search_paths[] = { TEXT("plugin\\"), };
   for (auto &i : search_paths)
     {
       // Main thread sets the current directory where the executable sits.
@@ -56,13 +53,13 @@ check_dlls ()
       HANDLE hFindFile = FindFirstFile (path, &findFileData);
       if (hFindFile == INVALID_HANDLE_VALUE)
 	continue;
-      do {
-	if (GetModuleHandle (findFileData.cFileName))
-	  {
+      do
+        {
+	  if (GetModuleHandle (findFileData.cFileName))
 	    continue;
-	  }
-	LoadLibrary (findFileData.cFileName);
-      } while (FindNextFile(hFindFile, &findFileData));
+	  LoadLibrary (findFileData.cFileName);
+        }
+      while (FindNextFile(hFindFile, &findFileData));
       FindClose (hFindFile);
     }
 
@@ -76,23 +73,23 @@ check_dlls ()
 BOOL
 pre_init (LPCWSTR lpPathName)
 {
+  constexpr auto XOR_R8_NOP4 = make_bytes (0x4d, 0x31, 0xc0,  0x0f, 0x1f, 0x40, 0x00);
   switch (image_id)
-    {
-    case ImageId::NGS1SteamAE:
-      check_dlls_hook = new SimpleInlineHook {0x571fd0, check_dlls};
-      // This allows users to run multiple instances of the game.
-      // xor r8, r8; nop4
-      patch1 = new Patch {0x056c463, make_bytes (0x4d, 0x31, 0xc0,  0x0f, 0x1f, 0x40, 0x00)};
-      break;
-    case ImageId::NGS2SteamAE:
-      check_dlls_hook = new SimpleInlineHook {0xb5c460, check_dlls};
-      patch1 = new Patch {0x1340d3b, make_bytes (0x4d, 0x31,  0xc0, 0x0f, 0x1f, 0x40, 0x00)};
-      break;
-    case ImageId::NGS2SteamJP:
-      check_dlls_hook = new SimpleInlineHook {0xb5c4b0, check_dlls};
-      patch1 = new Patch {0x1340b0b, make_bytes (0x4d, 0x31,  0xc0, 0x0f, 0x1f, 0x40, 0x00)};
-      break;
-    }
+  {
+  case ImageId::NGS1SteamAE:
+    check_dlls_hook = new SimpleInlineHook {0x571fd0, check_dlls};
+    // This allows users to run multiple instances of the game.
+    patch1 = new Patch {0x056c463, XOR_R8_NOP4};
+    break;
+  case ImageId::NGS2SteamAE:
+    check_dlls_hook = new SimpleInlineHook {0xb5c460, check_dlls};
+    patch1 = new Patch {0x1340d3b, XOR_R8_NOP4};
+    break;
+  case ImageId::NGS2SteamJP:
+    check_dlls_hook = new SimpleInlineHook {0xb5c4b0, check_dlls};
+    patch1 = new Patch {0x1340b0b, XOR_R8_NOP4};
+    break;
+  }
 
   delete SetCurrentDirectoryW_hook;
   return SetCurrentDirectoryW (lpPathName);
@@ -106,12 +103,12 @@ DllMain (HINSTANCE hinstDLL,
 	 LPVOID lpvReserved)
 {
   switch (fdwReason)
-    {
-    case DLL_PROCESS_ATTACH:
-      break;
-    default:
-      break;
-    }
+  {
+  case DLL_PROCESS_ATTACH:
+    break;
+  default:
+    break;
+  }
   return TRUE;
 }
 
