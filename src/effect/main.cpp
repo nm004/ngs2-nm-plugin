@@ -209,12 +209,14 @@ namespace rigidbody
   struct lump_data
   {
     struct game_object *obj;
+    // crushed node (part of the body) index?
     uint32_t data0x8;
-    uint32_t data0xc;
-    uint32_t data0x10;
-    int32_t data0x14;
-    uint32_t data0x18;
-    uint32_t data0x1c;
+    uint32_t gib_node_index;
+    uint32_t rigidbody_id;
+    uint32_t timer;
+    uint32_t padding0x18;
+    uint32_t state0x1c;
+    // maybe both of two are never used.
     float data0x20;
     float data0x24;
   };
@@ -226,7 +228,7 @@ namespace rigidbody
     uint32_t padding0xc;
     node_layer *node_lay;
     uintptr_t ptr0x18;
-    struct lump_data data0[0x10];
+    struct lump_data lump_data0[0x10];
     uint32_t data0x2a0;
     uint32_t padding0x2a4;
     alignas (8) struct lump_data data1[0x20];
@@ -249,7 +251,6 @@ namespace rigidbody
 
   Patch<Bytes <8>> *patch1;
   Patch<uint8_t> *patch2;
-  Patch<Bytes <5>> *patch3;
   SimpleInlineHook <decltype (get_pose_matrix)> *get_pose_matrix_hook;
 
 }
@@ -398,10 +399,13 @@ void afterimage::update_afterimage_params ()
 
 float *rigidbody::get_pose_matrix (float *out, struct node_layer &n, game_object &obj)
 {
-  uint32_t node_index = *reinterpret_cast <uint32_t *> (n.nodeobj + 0x34);
-  for (auto &i : lump_manager_ptr[obj.obj_group_index].data0)
-    if (i.data0xc == node_index)
-      return get_lump_pose_matrix (i, out, obj);
+  if (obj.data0x1a == 0)
+    {
+      uint32_t node_index = *reinterpret_cast <uint32_t *> (n.nodeobj + 0x34);
+      for (auto &i : lump_manager_ptr[obj.obj_group_index].lump_data0)
+	if (i.gib_node_index == node_index)
+	  return get_lump_pose_matrix (i, out, obj);
+    }
   return get_pose_matrix_hook->call (out, n, obj);
 }
 
@@ -571,9 +575,6 @@ init ()
       // Disable corpse deleting timer update.
       patch2 = new Patch {0x145f4dc, uint8_t {0xeb}};
 
-      // Fix a wrong rigidbody initialization.
-      patch3 = new Patch {0x1473a37, NOP5};
-
       lump_manager_ptr = reinterpret_cast <lump_manager *> (base_of_image + 0x642a6b0);
       get_lump_pose_matrix = reinterpret_cast <decltype (get_lump_pose_matrix)> (base_of_image + 0x144a330);
       get_pose_matrix_hook = new SimpleInlineHook {0xc0fdc0, get_pose_matrix};
@@ -592,8 +593,6 @@ init ()
       patch2 = new Patch {0x0f29437, make_bytes (0xe9, 0xa0, 0x00, 0x00, 0x00)};
       // xor eax, eax
       patch3 = new Patch {0x0f294dc, make_bytes (0x31, 0xc0)};
-
-      //update_enemy_hp_damage_multiplier_table <0x1d9f370> ();
 
       // Let's make pointers to a table point to our table.
       array<uintptr_t, 35> arr;
@@ -681,7 +680,6 @@ init ()
       FUN_13ffb50_hook = new SimpleInlineHook {0x13ff920, FUN_13ffb50};
       FUN_1444ab0_hook= new SimpleInlineHook {0x1444890, FUN_1444ab0};
       patch2 = new Patch {0x145f08c, uint8_t {0xeb}};
-      patch3 = new Patch {0x1473627, NOP5};
       lump_manager_ptr = reinterpret_cast <lump_manager *> (base_of_image + 0x64296b0);
       get_lump_pose_matrix = reinterpret_cast <decltype (get_lump_pose_matrix)> (base_of_image + 0x144a110);
       get_pose_matrix_hook = new SimpleInlineHook {0x0c0fe30, get_pose_matrix};
