@@ -24,8 +24,6 @@ using namespace nm;
 
 namespace
 {
-uintptr_t (*object_data_offset_table)[4];
-
 struct game_object
 {
   uintptr_t data_ptr0x0;
@@ -39,31 +37,35 @@ struct game_object
   uint8_t data0x1d;
   uint8_t data0x1e;
   uint8_t obj_group_index;
-  // imcomplete
+  uint8_t data0x20[0x10];
 };
 
-struct corpse_object_data
-{
-  uint8_t data0x0;
-  alignas (8) uintptr_t ptr0x8;
-  uintptr_t ptr0x10;
-};
+struct game_object *game_object_ptr;
 
-struct corpse_object_data_table
+struct corpse_object
 {
-  uint8_t data0x0;
-  alignas (8) struct corpse_object_data corpse_obj_data[0x100];
+  uint8_t in_use;
+  alignas (8) struct
+  {
+    uint8_t data0x0;
+    alignas (8) uintptr_t ptr0x8;
+    uintptr_t ptr0x10;
+  } corpse_obj_data[0x100];
   uintptr_t tmc_object_ptr;
-  uint32_t data0x1810;
-  float timer0;
+  uint8_t to_render;
+  alignas (4) float timer0;
   float timer1;
-  uint32_t data0x181c;
-  uint32_t data0x1820;
+  uint32_t object_type_id;
+  uint32_t object_id;
   uint32_t padding0x1824;
 };
 
-struct corpse_object_data_table *corpse_object_data_table_ptr;
+struct corpse_object *corpse_table_ptr;
 
+uintptr_t (*object_data_offset_table)[4];
+uint8_t *in_pause_ptr;
+
+constexpr auto NOP3 = make_bytes (0x0f, 0x1f, 0x00);
 constexpr auto NOP4 = make_bytes (0x0f, 0x1f, 0x40, 0x00);
 constexpr auto NOP5 = make_bytes (0x0f, 0x1f, 0x44, 0x00, 0x00);
 constexpr auto NOP7 = make_bytes (0x0f, 0x1f, 0x80, 0x00, 0x00, 0x00, 0x00);
@@ -142,7 +144,6 @@ namespace dismember
   Patch<uint32_t [4]> *patch3;
   Patch<int32_t> *patch4;
   Patch<Bytes <35>> *patch5;
-  Patch<uint8_t> *patch6;
   Patch<Bytes <10>> *patch7;
   Patch<Bytes <6>> *patch8;
   Patch<Bytes <6>> *patch9;
@@ -189,7 +190,7 @@ namespace rigidbody
   {
     uintptr_t nodeobj;
     uintptr_t hielay;
-    uint32_t *nodeobj_type;
+    uint32_t *obj_type;
   // for scanning entire layer (unordered, maybe)
     node_layer *next;
     node_layer *parent;
@@ -215,7 +216,7 @@ namespace rigidbody
     uint32_t rigidbody_id;
     uint32_t timer;
     uint32_t padding0x18;
-    uint32_t state0x1c;
+    uint32_t state;
     // maybe both of two are never used.
     float data0x20;
     float data0x24;
@@ -229,30 +230,70 @@ namespace rigidbody
     node_layer *node_lay;
     uintptr_t ptr0x18;
     struct lump_data lump_data0[0x10];
-    uint32_t data0x2a0;
+    uint32_t total_lump_count;
     uint32_t padding0x2a4;
     alignas (8) struct lump_data data1[0x20];
     uint32_t data0x7a8;
     uint32_t padding0x7ac;
   };
 
+  struct limb_data
+  {
+    uint32_t data0x0;
+    uint32_t data0x4;
+    uint32_t data0x8;
+    alignas (16) uintptr_t hielay_chunk;
+    int32_t rigidbody_id;
+    alignas (16) float *matrix_ptr;
+    float location_vec[4];
+    uint32_t data0x40;
+    int32_t data0x44;
+    uint64_t data0x48;
+    uint64_t data0x50;
+    uint64_t data0x58;
+    uint32_t data0x60;
+    uint32_t data0x64;
+    uint64_t data0x68;
+  };
+
+  struct character
+  {
+    uint8_t data0x0[0x210];
+    uint8_t dead;
+    uint8_t data0x211[0x102f];
+  };
+
+  uint32_t (*rigidbody_id_table_ptr)[0x80];
+  uint32_t *limb_count_ptr;
+  struct limb_data (*limb_manager_ptr)[4];
+
+  struct character *character_ptr;
+
   void FUN_13ffb50 (uintptr_t param_1, uintptr_t param_2);
-  void FUN_1444ab0 ();
+  void (*release_corpse)(struct corpse_object &);
+
+  bool is_stationary (int32_t obj_group_idx);
+  SimpleInlineHook <decltype (is_stationary)> *is_stationary_hook;
 
   float *get_pose_matrix (float *, struct node_layer &, game_object &);
   float *(*get_lump_pose_matrix) (lump_data &, float *, game_object &);
 
+  void register_corpse_node (uintptr_t param_1, struct node_layer &node);
+  SimpleInlineHook <decltype (register_corpse_node)> *register_corpse_node_hook;
   SimpleInlineHook <decltype (FUN_13ffb50)> *FUN_13ffb50_hook;
-  SimpleInlineHook <decltype (FUN_1444ab0)> *FUN_1444ab0_hook;
 
-  queue <struct corpse_object_data_table *> delete_corpse_queue;
+  int corpse_table_next_corpse_index;
+  int corpse_table_next_corpse_item_index;
 
   lump_manager *lump_manager_ptr;
 
   Patch<Bytes <8>> *patch1;
-  Patch<uint8_t> *patch2;
-  SimpleInlineHook <decltype (get_pose_matrix)> *get_pose_matrix_hook;
+  Patch<Bytes <18>> *patch2;
+  Patch<Bytes <10>> *patch3;
+  Patch<Bytes <5>> *patch4;
+  Patch<Bytes <36>> *patch5;
 
+  SimpleInlineHook <decltype (get_pose_matrix)> *get_pose_matrix_hook;
 }
 
 namespace combat
@@ -263,17 +304,19 @@ namespace combat
   // table_n[x][y] <=> Enemy HP Multiplier, Enemy Damage Multiplier, Enemy
   // Critical Damage Multiplier (e.g., striking a player on a wall).
   float enemy_hp_damage_multiplier_table[5][3] = {
-	{.618, .786, .887},
-	{.786, .887, .942},
-	{.887, .942, 1.},
-	{.942, 1., 1.272},
-	{1., 1.272, 1.618}
+	{0.887, 0.786, 0.887},
+	{0.887, 0.786, 0.887},
+	{0.887, 0.887, 0.942},
+	{1.000, 0.942, 1.000},
+	{1.000, 1.128, 1.272}
   };
 
   Patch<int32_t> *patch1;
   Patch<Bytes <5>> *patch2;
   Patch<Bytes <2>> *patch3;
   Patch<array<uintptr_t, 35>> *patch4;
+  Patch<uint8_t> *patch5;
+  Patch<uint8_t> *patch6;
 
   template <uintptr_t>
   void update_enemy_hp_damage_multiplier_table ();
@@ -357,7 +400,7 @@ bloodstamp::SphericalResourceGenerator_vfunction2 (SphericalResourceGenerator *t
     return;
 
   bloodstamp_effects_queue.emplace (e);
-  if (bloodstamp_effects_queue.size () < 1024)
+  if (bloodstamp_effects_queue.size () < 768)
     return;
 
   e = bloodstamp_effects_queue.front ();
@@ -402,45 +445,95 @@ float *rigidbody::get_pose_matrix (float *out, struct node_layer &n, game_object
   if (obj.data0x1a == 0)
     {
       uint32_t node_index = *reinterpret_cast <uint32_t *> (n.nodeobj + 0x34);
-      for (auto &i : lump_manager_ptr[obj.obj_group_index].lump_data0)
-	if (i.gib_node_index == node_index)
-	  return get_lump_pose_matrix (i, out, obj);
+      auto &L = lump_manager_ptr[obj.obj_group_index];
+      int n = L.total_lump_count - 0x20;
+      for (int i = 0; i < n; i++)
+      {
+	auto &ld = L.lump_data0[i];
+	if (ld.obj && ld.gib_node_index == node_index)
+	  return get_lump_pose_matrix (ld, out, obj);
+      }
     }
   return get_pose_matrix_hook->call (out, n, obj);
 }
 
-void
-rigidbody::FUN_1444ab0 ()
+bool
+rigidbody::is_stationary (int32_t game_object_idx)
 {
-  FUN_1444ab0_hook->call ();
-  delete_corpse_queue = {};
+  int grp = game_object_ptr[game_object_idx].obj_group_index;
+  if (character_ptr[grp].dead != 4)
+    return 0;
+
+  {
+    int n = limb_count_ptr[grp];
+    auto &L = limb_manager_ptr[grp];
+    for (int i = 0; i < n; i++)
+      {
+	uintptr_t p = reinterpret_cast <uintptr_t> (L[i].matrix_ptr);
+	if (L[i].rigidbody_id != -1 && *reinterpret_cast <uint8_t *> (p-0x310))
+	  return 0;
+      }
+  }
+
+  {
+    auto &L = lump_manager_ptr[grp];
+    int n = L.total_lump_count - 0x20;
+    for (int i = 0; i < n; i++)
+      {
+	auto &d = L.lump_data0[i];
+	if (d.state > 2)
+	  continue;
+
+	auto &T = *rigidbody_id_table_ptr;
+	for (int j = 0; j < size (T); j++)
+	  if (d.rigidbody_id == T[j])
+	    return 0;
+      }
+  }
+
+  return 1;
 }
 
 void
 rigidbody::FUN_13ffb50 (uintptr_t param_1, uintptr_t param_2)
 {
+  // We make corpse_table[0] always empty and the game always writes the corpse
+  // object data to corpse_table[0]. Then, we copy the data to corpse_table[i]
+  // and keep track of them.
+  auto &c0 = corpse_table_ptr[0];
+  int i;
+
+  // We want to render more corpses than thier items. Glitched rendering happens
+  // if we render too many corpses.
+  // 0 < i < 25 for corpses, 25 <= i < 40 for items.
+  if (c0.object_type_id != 0)
+    {
+      i = corpse_table_next_corpse_item_index % 15;
+      corpse_table_next_corpse_item_index = i + 1;
+      i += 25;
+    }
+  else
+    {
+      i = corpse_table_next_corpse_index % (40 - 16);
+      corpse_table_next_corpse_index = i + 1;
+      i++;
+    }
+  auto &c = corpse_table_ptr[i];
+  release_corpse (c);
+  c = c0;
+  c0 = {};
+  c.to_render = 1;
+
   FUN_13ffb50_hook->call (param_1, param_2);
+  return;
+}
 
-  span <struct corpse_object_data_table> T {corpse_object_data_table_ptr, 40};
-  for (auto &t : T)
-    {
-      if (t.tmc_object_ptr == param_2)
-	{
-	  t.timer1 = (1 << 24) - 1;
-	  delete_corpse_queue.push (&t);
-	  break;
-	}
-    }
-
-  // We release 2 elements from the queue since the game register an enemy and its item separately.
-  // Objects get released when timer0 reaches timer1.
-  if (delete_corpse_queue.size () == size(T))
-    {
-      delete_corpse_queue.front ()->timer0 = (1 << 24);
-      delete_corpse_queue.pop ();
-      delete_corpse_queue.front ()->timer0 = (1 << 24);
-      delete_corpse_queue.pop ();
-    }
+void
+rigidbody::register_corpse_node (uintptr_t param_1, struct node_layer &node)
+{
+  if (!node.is_visible1)
+    return;
+  register_corpse_node_hook->call (param_1, node);
 }
 
 void
@@ -450,6 +543,9 @@ init ()
   {
   case ImageId::NGS2SteamAE:
     object_data_offset_table = reinterpret_cast <uintptr_t (*)[4]> (base_of_image + 0x1e38710);
+    game_object_ptr = reinterpret_cast <struct game_object *> (base_of_image + 0x3195300);
+    in_pause_ptr = reinterpret_cast <uint8_t *> (base_of_image + 0x211e753);
+
     {
       using namespace hit;
       // This circumvents the block for triggering the EFF_ArrowHitBlood
@@ -527,9 +623,6 @@ init ()
       // invoke BloodCrushRootEffect.
       patch5 = new Patch {0x1460d34, concat (NOP9, NOP9, NOP9, NOP7, uint8_t {0xeb})};
 
-      // This circumvents the block of transition to the dead state of an
-      // enemy.
-      patch6 = new Patch {0xf8758f, uint8_t {0xeb}};
 
       // Additional blood shed for crushing effect.
       patch7 = new Patch {0x144c0d0, concat (NOP5, NOP5)};
@@ -568,16 +661,34 @@ init ()
       // xorps xmm0, xmm0; xorps xmm1, xmm1; nop2;
       patch1 = new Patch {0x145e67a, make_bytes(0x0f, 0x57, 0xc0, 0x0f, 0x57, 0xc9, 0x66, 0x90)};
 
-      corpse_object_data_table_ptr = reinterpret_cast <decltype (corpse_object_data_table_ptr)> (base_of_image + 0x6439cc0);
+      corpse_table_ptr = reinterpret_cast <struct corpse_object *> (base_of_image + 0x6439cc0);
       FUN_13ffb50_hook = new SimpleInlineHook {0x13ffb50, FUN_13ffb50};
-      FUN_1444ab0_hook= new SimpleInlineHook {0x1444ab0, FUN_1444ab0};
+      patch2 = new Patch {0x145d610, concat (NOP9, NOP9)};
 
-      // Disable corpse deleting timer update.
-      patch2 = new Patch {0x145f4dc, uint8_t {0xeb}};
+      // This prevents the corpse_table[0] from accidtally being used since we
+      // do not use corpse_table[0].
+      patch3 = new Patch {0x145d7d8, concat (NOP5, NOP5)};
 
+      // This prevents a corpse timer from updating even when there are many
+      // corpses since we manually release corpses by ourselves.
+      // xor eax, eax; nop3;
+      patch4 = new Patch {0x145f584, concat (make_bytes (0x31, 0xc0), NOP3)};
+
+      register_corpse_node_hook = new SimpleInlineHook {0x145e750, register_corpse_node};
+      release_corpse = reinterpret_cast <decltype (release_corpse)> (base_of_image + 0x145dde0);
+
+      rigidbody_id_table_ptr = reinterpret_cast <uint32_t (*)[0x80]> (base_of_image + 0x64b4850);
+      character_ptr = reinterpret_cast <struct character *> (base_of_image + 0x2f78b10);
+      limb_count_ptr = reinterpret_cast <uint32_t *> (base_of_image + 0x21b3000);
+      limb_manager_ptr = reinterpret_cast <struct limb_data (*)[4]> (base_of_image + 0x6426880);
       lump_manager_ptr = reinterpret_cast <lump_manager *> (base_of_image + 0x642a6b0);
       get_lump_pose_matrix = reinterpret_cast <decltype (get_lump_pose_matrix)> (base_of_image + 0x144a330);
       get_pose_matrix_hook = new SimpleInlineHook {0xc0fdc0, get_pose_matrix};
+
+      is_stationary_hook = new SimpleInlineHook {0x0f87410, is_stationary};
+
+      // This keep enemies from vanishing.
+      patch5 = new Patch {0x0f291de, concat (NOP9, NOP9, NOP9, NOP9)};
     }
 
     {
@@ -598,10 +709,25 @@ init ()
       array<uintptr_t, 35> arr;
       fill (arr.begin (), arr.end (), reinterpret_cast <uintptr_t> (&enemy_hp_damage_multiplier_table));
       patch4 = new Patch {0x1829080, arr};
+
+      // Default damage multiplier (both player and enemy).
+      // This is used when an override multiplier doesn't exist.
+      //*reinterpret_cast <float *> (base_of_image + 0x1e26440 + 4) = 1;
+
+      // Counter hit damage multiplier (player only?).
+      *reinterpret_cast <float *> (base_of_image + 0x1e26440 + 8) = 1.618;
+
+      // These makes Flying Swallow refer to the damage multiplier.
+      // ja rel
+      patch5 = new Patch {0x0f4bfcd, uint8_t {0x77}};
+      patch6 = new Patch {0x0f73607 + 1, uint8_t {0x87}};
     }
     break;
   case ImageId::NGS2SteamJP:
     object_data_offset_table = reinterpret_cast <uintptr_t (*)[4]> (base_of_image + 0x1e37710);
+    game_object_ptr = reinterpret_cast <struct game_object *> (base_of_image + 0x3194300);
+    in_pause_ptr = reinterpret_cast <uint8_t *> (base_of_image + 0x211e753);
+
     {
       using namespace hit;
       patch1 = new Patch {0x10485e8, make_bytes (0x83, 0xe0, 0x00)};
@@ -640,7 +766,6 @@ init ()
       patch3 = new Patch {0x1207190, *reinterpret_cast <uint32_t (*)[4]> (base_of_image + 0x1207190 + 4 * 0x10)};
       patch4 = new Patch {0x14585f8 + 1, 0x121fba0 - (0x14585f8 + 5)};
       patch5 = new Patch {0x1460904, concat (NOP9, NOP9, NOP9, NOP7, uint8_t {0xeb})};
-      patch6 = new Patch {0x0f8738f, uint8_t {0xeb}};
       patch7 = new Patch {0x144beb0, concat (NOP5, NOP5)};
       patch8 = new Patch {0x1459e0d , concat (make_bytes (0x31, 0xc0), NOP4)};
       patch9 = new Patch {0x144ac60, concat (make_bytes (0x31, 0xc0), NOP4)};
@@ -676,13 +801,27 @@ init ()
     {
       using namespace rigidbody;
       patch1 = new Patch {0x145e20a, make_bytes(0x0f, 0x57, 0xc0, 0x0f, 0x57, 0xc9, 0x66, 0x90)};
-      corpse_object_data_table_ptr = reinterpret_cast <decltype (corpse_object_data_table_ptr)> (base_of_image + 0x6438cc0);
+      patch2 = new Patch {0x145d1a0, concat (NOP9, NOP9)};
+      patch3 = new Patch {0x145d368, concat (NOP5, NOP5)};
+      patch4 = new Patch {0x145f134, concat (make_bytes (0x31, 0xc0), NOP3)};
+      patch5 = new Patch {0x0f28fde, concat (NOP9, NOP9, NOP9, NOP9)};
+
+      corpse_table_ptr = reinterpret_cast <struct corpse_object *> (base_of_image + 0x6438cc0);
       FUN_13ffb50_hook = new SimpleInlineHook {0x13ff920, FUN_13ffb50};
-      FUN_1444ab0_hook= new SimpleInlineHook {0x1444890, FUN_1444ab0};
-      patch2 = new Patch {0x145f08c, uint8_t {0xeb}};
       lump_manager_ptr = reinterpret_cast <lump_manager *> (base_of_image + 0x64296b0);
       get_lump_pose_matrix = reinterpret_cast <decltype (get_lump_pose_matrix)> (base_of_image + 0x144a110);
       get_pose_matrix_hook = new SimpleInlineHook {0x0c0fe30, get_pose_matrix};
+
+      register_corpse_node_hook = new SimpleInlineHook {0x145e2e0, register_corpse_node};
+      release_corpse = reinterpret_cast <decltype (release_corpse)> (base_of_image + 0x145d970);
+
+      rigidbody_id_table_ptr = reinterpret_cast <uint32_t (*)[0x80]> (base_of_image + 0x64b3850);
+      character_ptr = reinterpret_cast <struct character *> (base_of_image + 0x2f77b10);
+      limb_count_ptr = reinterpret_cast <uint32_t *> (base_of_image + 0x21b2000);
+      limb_manager_ptr = reinterpret_cast <struct limb_data (*)[4]> (base_of_image + 0x6425880);
+      lump_manager_ptr = reinterpret_cast <lump_manager *> (base_of_image + 0x64296b0);
+
+      is_stationary_hook = new SimpleInlineHook {0x0f87210, is_stationary};
     }
     {
       using namespace combat;
@@ -692,6 +831,11 @@ init ()
       array<uintptr_t, 35> arr;
       fill (arr.begin (), arr.end (), reinterpret_cast <uintptr_t> (&enemy_hp_damage_multiplier_table));
       patch4 = new Patch {0x1828080, arr};
+      patch5 = new Patch {0x0f4bdcd, uint8_t {0x77}};
+      patch6 = new Patch {0x0f73407 + 1, uint8_t {0x87}};
+
+      //*reinterpret_cast <float *> (base_of_image + 0x1e25440 + 4) = 1;
+      *reinterpret_cast <float *> (base_of_image + 0x1e25440 + 8) = 1.618;
     }
     break;
   }

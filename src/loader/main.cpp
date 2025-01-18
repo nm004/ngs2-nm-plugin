@@ -55,18 +55,19 @@ HANDLE open_mod_file (int32_t);
 void *(*tmcl_malloc)(void *, uint32_t);
 VFPHook<decltype (get_chunk_info)> *get_chunk_info_hook;
 VFPHook<decltype (load_data)> *load_data_hook;
-map<const struct chunk_info *, pair<int32_t, uint32_t>> chunk_info_to_index_and_original_size;
+map<const struct chunk_info *, pair<int32_t, const uint32_t>> chunk_info_to_index_and_original_size;
 
 bool
 load_data_ngs1 (ProductionPackage *thisptr, uintptr_t param2, const struct chunk_info *ci, void *out_buf)
 {
   HANDLE hFile;
 
-  auto itr = chunk_info_to_index_and_original_size.find (ci);
-  if (itr == chunk_info_to_index_and_original_size.end () || !itr->second.second)
+  // We assume that chunk_info mapping is already made.
+  auto e = chunk_info_to_index_and_original_size.find (ci)->second;
+  if (e.first == -1)
     goto BAIL;
 
-  hFile = open_mod_file (itr->second.first);
+  hFile = open_mod_file (e.first);
   if (hFile == INVALID_HANDLE_VALUE)
     goto BAIL;
 
@@ -96,11 +97,12 @@ load_data (ProductionPackage *thisptr, uintptr_t param2, const struct chunk_info
 {
   HANDLE hFile;
 
-  auto itr = chunk_info_to_index_and_original_size.find (ci);
-  if (itr == chunk_info_to_index_and_original_size.end () || !itr->second.second)
+  // We assume that chunk_info mapping is already made.
+  auto e = chunk_info_to_index_and_original_size.find (ci)->second;
+  if (e.first == -1)
     goto BAIL;
 
-  hFile = open_mod_file (itr->second.first);
+  hFile = open_mod_file (e.first);
   if (hFile == INVALID_HANDLE_VALUE)
     goto BAIL;
 
@@ -121,27 +123,19 @@ get_chunk_info (ProductionPackage *thisptr, int32_t index)
   if (!ci)
     return ci;
 
-  auto e = chunk_info_to_index_and_original_size.find (ci);
+  auto e = chunk_info_to_index_and_original_size.emplace (ci, pair {index, ci->decompressed_size}).first->second;
 
   HANDLE hFile;
   if ((hFile = open_mod_file (index)) == INVALID_HANDLE_VALUE)
     {
-      if (e != chunk_info_to_index_and_original_size.end ())
-	{
-	  ci->decompressed_size = e->second.second;
-	  e->second.second = 0;
-	}
-
+      e.first = -1;
+      ci->decompressed_size = e.second;
       return ci;
     }
+  e.first = index;
 
   LARGE_INTEGER size;
   GetFileSizeEx (hFile, &size);
-  if (e == chunk_info_to_index_and_original_size.end ())
-    chunk_info_to_index_and_original_size.emplace (ci, pair {index, ci->decompressed_size});
-  else if (!e->second.second)
-    e->second.second = ci->decompressed_size;
-
   ci->decompressed_size = size.u.LowPart;
   CloseHandle (hFile);
   return ci;
