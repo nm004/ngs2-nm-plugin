@@ -288,7 +288,8 @@ namespace rigidbody
   lump_manager *lump_manager_ptr;
 
   Patch<Bytes <8>> *patch1;
-  Patch<Bytes <18>> *patch2;
+  Patch<Bytes <18>> *patch2_1;
+  Patch<Bytes <1>> *patch2_2;
   Patch<Bytes <10>> *patch3;
   Patch<Bytes <5>> *patch4;
   Patch<Bytes <36>> *patch5;
@@ -663,7 +664,18 @@ init ()
 
       corpse_table_ptr = reinterpret_cast <struct corpse_object *> (base_of_image + 0x6439cc0);
       FUN_13ffb50_hook = new SimpleInlineHook {0x13ffb50, FUN_13ffb50};
-      patch2 = new Patch {0x145d610, concat (NOP9, NOP9)};
+
+      // This rewrites the reset corpses loop to co-op with our codes.
+      // nop2; lea rax, [rbx+1808]; cmp qword [rax], 0; je rel;
+      patch2_1 = new Patch {0x145d60a,
+	  make_bytes (0x66, 0x90,
+		      0x48, 0x8d, 0x83, 0x08, 0x18, 0x00, 0x00,
+		      0x48, 0x83, 0x38, 0x00,
+		      0x74, 0x11,
+		      0x48, 0x8b, 0x00)
+      };
+      // jne 0x145d60a;
+      patch2_2 = new Patch {0x145d635 + 1, concat (uint8_t {0xd5})};
 
       // This prevents the corpse_table[0] from accidtally being used since we
       // do not use corpse_table[0].
@@ -801,7 +813,14 @@ init ()
     {
       using namespace rigidbody;
       patch1 = new Patch {0x145e20a, make_bytes(0x0f, 0x57, 0xc0, 0x0f, 0x57, 0xc9, 0x66, 0x90)};
-      patch2 = new Patch {0x145d1a0, concat (NOP9, NOP9)};
+      patch2_1 = new Patch {0x145d19a,
+	  make_bytes (0x66, 0x90,
+		      0x48, 0x8d, 0x83, 0x08, 0x18, 0x00, 0x00,
+		      0x48, 0x83, 0x38, 0x00,
+		      0x74, 0x11,
+		      0x48, 0x8b, 0x00)
+      };
+      patch2_2 = new Patch {0x145d1c5 + 1, concat (uint8_t {0xd5})};
       patch3 = new Patch {0x145d368, concat (NOP5, NOP5)};
       patch4 = new Patch {0x145f134, concat (make_bytes (0x31, 0xc0), NOP3)};
       patch5 = new Patch {0x0f28fde, concat (NOP9, NOP9, NOP9, NOP9)};
