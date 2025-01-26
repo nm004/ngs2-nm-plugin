@@ -306,11 +306,9 @@ namespace rigidbody
   bool is_stationary (int32_t obj_group_idx);
   SimpleInlineHook <decltype (is_stationary)> *is_stationary_hook;
 
-  float *get_pose_matrix (float *, struct node_layer &, game_object &);
-  float *(*get_lump_pose_matrix) (lump_data &, float *, game_object &);
+  float *get_pose_matrix (float (&)[16], struct node_layer &, game_object &);
+  float *(*get_lump_pose_matrix) (lump_data &, float (&)[16], game_object &);
 
-  void register_corpse_node (uintptr_t param_1, struct node_layer &node);
-  SimpleInlineHook <decltype (register_corpse_node)> *register_corpse_node_hook;
   SimpleInlineHook <decltype (FUN_13ffb50)> *FUN_13ffb50_hook;
 
   int corpse_table_next_corpse_index;
@@ -472,11 +470,17 @@ void afterimage::update_afterimage_params ()
     }
 }
 
-float *rigidbody::get_pose_matrix (float *out, struct node_layer &n, game_object &obj)
+float *rigidbody::get_pose_matrix (float (&out)[16], struct node_layer &nl, game_object &obj)
 {
+  if (!obj.data_ptr0x8)
+    {
+      out[0] = out[4*1+1] = out[4*2+2] = out[4*3+3] = 1.f;
+      return out;
+    }
+
   if (obj.data0x1a == 0)
     {
-      uint32_t node_index = *reinterpret_cast <uint32_t *> (n.nodeobj + 0x34);
+      uint32_t node_index = *reinterpret_cast <uint32_t *> (nl.nodeobj + 0x34);
       auto &L = lump_manager_ptr[obj.obj_group_index];
       int n = L.total_lump_count - 0x20;
       for (int i = 0; i < n; i++)
@@ -486,7 +490,7 @@ float *rigidbody::get_pose_matrix (float *out, struct node_layer &n, game_object
 	  return get_lump_pose_matrix (ld, out, obj);
       }
     }
-  return get_pose_matrix_hook->call (out, n, obj);
+  return get_pose_matrix_hook->call (out, nl, obj);
 }
 
 bool
@@ -566,14 +570,6 @@ rigidbody::FUN_13ffb50 (uintptr_t param_1, uintptr_t param_2)
 
   FUN_13ffb50_hook->call (param_1, param_2);
   return;
-}
-
-void
-rigidbody::register_corpse_node (uintptr_t param_1, struct node_layer &node)
-{
-  if (!node.is_visible1)
-    return;
-  register_corpse_node_hook->call (param_1, node);
 }
 
 void
@@ -764,7 +760,6 @@ init ()
       // xor eax, eax; nop3;
       patch4 = new Patch {0x145f584, concat (make_bytes (0x31, 0xc0), NOP3)};
 
-      register_corpse_node_hook = new SimpleInlineHook {0x145e750, register_corpse_node};
       release_corpse = reinterpret_cast <decltype (release_corpse)> (base_of_image + 0x145dde0);
 
       rigidbody_id_table_ptr = reinterpret_cast <uint32_t (*)[0x80]> (base_of_image + 0x64b4850);
@@ -794,10 +789,8 @@ init ()
       //patch6_6 = new Patch {0x140b805, NOP_CMP_CL_IMM_JB_IMM};
       patch6_7 = new Patch {0x140c8e0, NOP_CMP_CL_IMM_JB_IMM};
       patch6_8 = new Patch {0x141a257, NOP_CMP_DL_IMM_JB_IMM};
-      /*
-      patch6_9 = new Patch {0x141b0d6, NOP_CMP_CL_IMM_JB_IMM};
-      patch6_10 = new Patch {0x141ba79, NOP_CMP_CL_IMM_JB_IMM};
-      */
+      //patch6_9 = new Patch {0x141b0d6, NOP_CMP_CL_IMM_JB_IMM};
+      //patch6_10 = new Patch {0x141ba79, NOP_CMP_CL_IMM_JB_IMM};
       patch6_11 = new Patch {0x15f1e08, NOP_CMP_CL_IMM_JB_IMM};
       patch6_12 = new Patch {0x15f2ad2, NOP_CMP_CL_IMM_JB_IMM};
       patch6_13 = new Patch {0x163507a, CMP_R8B_IMM_JB_IMM};
@@ -908,7 +901,6 @@ init ()
       get_lump_pose_matrix = reinterpret_cast <decltype (get_lump_pose_matrix)> (base_of_image + 0x144a110);
       get_pose_matrix_hook = new SimpleInlineHook {0x0c0fe30, get_pose_matrix};
 
-      register_corpse_node_hook = new SimpleInlineHook {0x145e2e0, register_corpse_node};
       release_corpse = reinterpret_cast <decltype (release_corpse)> (base_of_image + 0x145d970);
 
       rigidbody_id_table_ptr = reinterpret_cast <uint32_t (*)[0x80]> (base_of_image + 0x64b3850);
