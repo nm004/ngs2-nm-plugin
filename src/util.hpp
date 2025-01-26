@@ -93,6 +93,8 @@ public:
       copy_n (*m_va, size (content), m_old_content);
     else
       m_old_content = *m_va;
+
+    VirtualProtect (m_va, sizeof (T), PAGE_EXECUTE_READWRITE, &m_flOldProtect);
     write (content);
   }
 
@@ -104,7 +106,10 @@ public:
   ~Patch ()
   {
     if (m_va)
+    {
       write (m_old_content);
+      VirtualProtect (m_va, sizeof (T), m_flOldProtect, &m_flOldProtect);
+    }
   }
 
   Patch&
@@ -126,97 +131,112 @@ public:
   get_dest_va () const { return m_va; }
 
 private:
-  // This forcibly overwrites the content at m_va.
   void
   write (const T &src) const
   {
     using namespace std;
 
-    DWORD flOldProtect;
-    VirtualProtect (m_va, sizeof (src), PAGE_EXECUTE_READWRITE, &flOldProtect);
-    if constexpr (std::is_array<T>::value)
+    if constexpr (is_array<T>::value)
       copy_n (src, size (src), *m_va);
     else
       *m_va = src;
-    VirtualProtect (m_va, sizeof (src), flOldProtect, &flOldProtect);
   }
 
+  DWORD m_flOldProtect;
   std::remove_const<T>::type *m_va;
   std::remove_const<T>::type m_old_content;
 };
 
 // Hooking is done by direct jump.
-template <typename T>
+template <typename F = void ()>
 class SimpleInlineHook
 {
-  static_assert (std::is_function<T>::value, "type T must be function type.");
+  using InjectionCode = Bytes <12>;
 
 public:
+  static_assert (std::is_function<F>::value, "type F must be function type.");
+
+  static constexpr size_t INJECTION_CODE_SIZE = sizeof (InjectionCode);
+
   SimpleInlineHook () = delete;
   SimpleInlineHook (const SimpleInlineHook &) = delete;
   SimpleInlineHook & operator= (const SimpleInlineHook &) = delete;
 
   constexpr
-  SimpleInlineHook (Bytes<16> *target_func, uintptr_t callback_func)
-    // mov rax, imm; jmp rax; padding
-    : m_patch {target_func, concat(make_bytes (0x48, 0xb8), callback_func, make_bytes (0xff, 0xe0), 0x00)} {}
+  SimpleInlineHook (F *target_func, uintptr_t callback_func)
+    : m_callback_func {callback_func},
+      m_patch {reinterpret_cast <InjectionCode *> (target_func), make_injection_code ()} {}
 
   constexpr
-  SimpleInlineHook (T *target_func, T *callback_func)
-    : SimpleInlineHook {reinterpret_cast <Bytes <16> *> (target_func), reinterpret_cast <uintptr_t> (callback_func)} {}
+  SimpleInlineHook (F *target_func, F *callback_func)
+    : SimpleInlineHook {target_func, reinterpret_cast <uintptr_t> (callback_func)} {}
 
   constexpr
-  SimpleInlineHook (uintptr_t func_rva, T *callback_func)
-    : SimpleInlineHook {reinterpret_cast <Bytes <16> *> (base_of_image + func_rva), reinterpret_cast<uintptr_t> (callback_func)} {}
+  SimpleInlineHook (uintptr_t func_rva, F *callback_func)
+    : SimpleInlineHook {reinterpret_cast <F *> (base_of_image + func_rva), reinterpret_cast<uintptr_t> (callback_func)} {}
 
+  // Callback is done by writing the original code back.
   // This is not thread-safe (but who cares :).
   constexpr auto
   call (auto &&... args)
-    {
-      using namespace std;
+  {
+    using namespace std;
 
-      auto va = m_patch.get_dest_va ();
-      Bytes <16> code;
-      copy (va->begin (), va->end (), code.begin ());
-      m_patch.~Patch ();
+    auto va = const_cast <InjectionCode *> (m_patch.get_dest_va ());
+    m_patch.~Patch ();
 
-      if constexpr (std::is_same <void, typename invoke_result <T, decltype (args)...>::type>::value)
-	{
-	  reinterpret_cast <T *> (va) (forward<decltype (args)> (args)...);
-	  m_patch = move (Patch {const_cast <Bytes <16> *> (va), code});
-	}
-      else
-	{
-	  auto r = reinterpret_cast <T *> (va) (forward<decltype (args)> (args)...);
-	  m_patch = move (Patch {const_cast <Bytes <16> *> (va), code});
-	  return r;
-	}
-    }
+    if constexpr (is_same <void, typename invoke_result <F, decltype (args)...>::type>::value)
+      {
+	reinterpret_cast <F *> (va) (forward<decltype (args)> (args)...);
+	m_patch = move (Patch {va, make_injection_code ()});
+      }
+    else
+      {
+	auto r = reinterpret_cast <F *> (va) (forward<decltype (args)> (args)...);
+	m_patch = move (Patch {va, make_injection_code ()});
+	return r;
+      }
+  }
+
+  constexpr auto
+  call_direct (auto &&... args)
+  {
+    uintptr_t va = reinterpret_cast <uintptr_t> (m_patch.get_dest_va ()) + INJECTION_CODE_SIZE;
+    return reinterpret_cast <F *> (va) (std::forward<decltype (args)> (args)...);
+  }
 
 private:
-  Patch<Bytes <16>> m_patch;
+  constexpr auto
+  make_injection_code () const
+  {
+    // mov rax, imm; jmp rax;
+    return concat(make_bytes (0x48, 0xb8), m_callback_func, make_bytes (0xff, 0xe0));
+  }
+
+  const uintptr_t m_callback_func;
+  Patch <InjectionCode> m_patch;
 };
 
-template <typename T>
+template <typename F = void ()>
 class VFPHook
 {
-  static_assert (std::is_function<T>::value, "type T must be function type.");
-
 public:
+  static_assert (std::is_function<F>::value, "type F must be function type.");
+
   VFPHook () = delete;
   VFPHook (const VFPHook &) = delete;
   VFPHook & operator= (const VFPHook &) = delete;
 
   constexpr
-  VFPHook (uintptr_t vfp_rva, T* callback_func)
+  VFPHook (uintptr_t vfp_rva, F* callback_func)
     : m_patch {reinterpret_cast <void *> (base_of_image + vfp_rva), reinterpret_cast<uintptr_t> (callback_func)} {}
 
   constexpr auto
   call (auto &&... args) const
-    {
-      auto f = reinterpret_cast<T *> (m_patch.get_old_content ());
-      return f (std::forward<decltype (args)> (args)...);
-    }
+  {
+    auto f = reinterpret_cast<F *> (m_patch.get_old_content ());
+    return f (std::forward<decltype (args)> (args)...);
+  }
 
 private:
   Patch<uintptr_t> m_patch;

@@ -21,13 +21,16 @@ set_property(TARGET core PROPERTY OUTPUT_NAME "dbghelp")
 add_library(steam-bugfixes MODULE src/steam-bugfixes/main.cpp)
 add_library(loader MODULE src/loader/main.cpp)
 add_library(effect MODULE src/effect/main.cpp)
+add_library(combat MODULE src/combat/main.cpp)
 set_property(TARGET
-	effect
-	loader
 	steam-bugfixes
+	loader
+	effect
+	combat
 	PROPERTY PREFIX "nm")
 
 install(TARGETS core DESTINATION .)
 install(TARGETS steam-bugfixes DESTINATION ./plugin)
 install(TARGETS loader DESTINATION ./plugin)
 install(TARGETS effect DESTINATION ./plugin)
+install(TARGETS combat DESTINATION ./plugin)
