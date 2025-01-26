@@ -496,9 +496,9 @@ float *rigidbody::get_pose_matrix (float (&out)[16], struct node_layer &nl, game
 bool
 rigidbody::is_stationary (int32_t game_object_idx)
 {
-  game_object *G = game_object_ptr;
+  game_object &obj = game_object_ptr[game_object_idx];
 
-  int grp = G[game_object_idx].obj_group_index;
+  int grp = obj.obj_group_index;
   if (character_ptr[grp].dead != 4)
     return 0;
 
@@ -530,7 +530,7 @@ rigidbody::is_stationary (int32_t game_object_idx)
   }
 
   {
-    int i = G[game_object_idx].vanish_timer_table_index;
+    int i = obj.vanish_timer_table_index;
     if (vanish_timer_table_ptr[i] > 0)
       return 0;
   }
@@ -541,6 +541,8 @@ rigidbody::is_stationary (int32_t game_object_idx)
 void
 rigidbody::FUN_13ffb50 (uintptr_t param_1, uintptr_t param_2)
 {
+  FUN_13ffb50_hook->call (param_1, param_2);
+
   // We make corpse_table[0] always empty and the game always writes the corpse
   // object data to corpse_table[0]. Then, we copy the data to corpse_table[i]
   // and keep track of them.
@@ -567,8 +569,6 @@ rigidbody::FUN_13ffb50 (uintptr_t param_1, uintptr_t param_2)
   c = c0;
   c0 = {};
   c.to_render = 1;
-
-  FUN_13ffb50_hook->call (param_1, param_2);
   return;
 }
 
