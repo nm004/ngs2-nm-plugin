@@ -195,6 +195,7 @@ DllMain (HINSTANCE hinstDLL,
   switch (fdwReason)
   {
   case DLL_PROCESS_ATTACH:
+    DisableThreadLibraryCalls (hinstDLL);
     init ();
     break;
   case DLL_PROCESS_DETACH:
