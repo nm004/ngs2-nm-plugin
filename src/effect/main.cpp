@@ -551,16 +551,16 @@ rigidbody::FUN_13ffb50 (uintptr_t param_1, uintptr_t param_2)
 
   // We want to render more corpses than thier items. Glitched rendering happens
   // if we render too many corpses.
-  // 0 < i < 28 for corpses, 28 <= i < 40 for items.
+  // 0 < i < 25 for corpses, 25 <= i < 40 for items.
   if (c0.game_object_type != 0)
     {
       i = corpse_table_next_corpse_item_index % 4;
       corpse_table_next_corpse_item_index = i + 1;
-      i += 28;
+      i += 25;
     }
   else
     {
-      i = corpse_table_next_corpse_index % (40 - 13);
+      i = corpse_table_next_corpse_index % (40 - 16);
       corpse_table_next_corpse_index = i + 1;
       i++;
     }
