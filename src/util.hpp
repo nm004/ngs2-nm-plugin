@@ -18,40 +18,10 @@
 #include <cstdint>
 #include <cstddef>
 
-namespace nm::util::detail
-{
-
-PIMAGE_NT_HEADERS64
-get_nt_headers ()
-{
-  auto base {reinterpret_cast<uintptr_t> (GetModuleHandle (nullptr))};
-  auto pehdr_ofs {*reinterpret_cast<uint32_t *> (base + 0x3c)};
-  return reinterpret_cast<PIMAGE_NT_HEADERS64> (base + pehdr_ofs);
-}
-
-} // namespace nm::util::detail
-
 namespace nm
 {
 
-// This is currently defined by the size of code.
-enum class ImageId : unsigned
-{
-  // for America, Europe and other than East Asia
-  NGS1SteamAE = 0x91aa00,
-
-  // for Japan and East Asia
-  NGS1SteamJP = 0,
-
-  // for America, Europe and other than East Asia
-  NGS2SteamAE = 0x179c400,
-
-  // for Japan and East Asia
-  NGS2SteamJP = 0x179c000,
-};
-
-inline const ImageId image_id {util::detail::get_nt_headers ()->OptionalHeader.SizeOfCode};
-inline const uintptr_t base_of_image {reinterpret_cast<uintptr_t> (GetModuleHandle (nullptr))};
+inline const uintptr_t base_address {reinterpret_cast <uintptr_t> (GetModuleHandle (nullptr))};
 
 template <size_t N>
 using Bytes = std::array<std::byte, N>;
@@ -100,7 +70,7 @@ public:
 
   constexpr
   Patch (uintptr_t rva, const T &content)
-    : Patch {reinterpret_cast <void *> (base_of_image + rva), content} {}
+    : Patch {reinterpret_cast <void *> (base_address + rva), content} {}
 
   constexpr
   ~Patch ()
@@ -173,7 +143,7 @@ public:
 
   constexpr
   SimpleInlineHook (uintptr_t func_rva, F *callback_func)
-    : SimpleInlineHook {reinterpret_cast <F *> (base_of_image + func_rva), reinterpret_cast<uintptr_t> (callback_func)} {}
+    : SimpleInlineHook {reinterpret_cast <F *> (base_address + func_rva), reinterpret_cast<uintptr_t> (callback_func)} {}
 
   // Callback is done by writing the original code back.
   // This is not thread-safe (but who cares :).
@@ -229,7 +199,7 @@ public:
 
   constexpr
   VFPHook (uintptr_t vfp_rva, F* callback_func)
-    : m_patch {reinterpret_cast <void *> (base_of_image + vfp_rva), reinterpret_cast<uintptr_t> (callback_func)} {}
+    : m_patch {reinterpret_cast <void *> (base_address + vfp_rva), reinterpret_cast<uintptr_t> (callback_func)} {}
 
   constexpr auto
   call (auto &&... args) const

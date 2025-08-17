@@ -449,7 +449,7 @@ bloodstamp::SphericalResourceGenerator_vfunction2 (SphericalResourceGenerator *t
 template <uintptr_t afterimage_params_rva>
 void afterimage::update_afterimage_params ()
 {
-  auto &params = *reinterpret_cast <afterimage_param (*)[18]> (base_of_image + afterimage_params_rva);
+  auto &params = *reinterpret_cast <afterimage_param (*)[18]> (base_address + afterimage_params_rva);
 
   // TODO?: Make these configurable for players.
   // p[0] == Ryu
@@ -575,9 +575,9 @@ rigidbody::FUN_13ffb50 (uintptr_t param_1, uintptr_t param_2)
 void
 rigidbody::init_game_model_data_manager ()
 {
-  auto &x = *reinterpret_cast <float (*)[0x140]> (base_of_image + 0x219bff0);
+  auto &x = *reinterpret_cast <float (*)[0x140]> (base_address + 0x219bff0);
   fill (x, end (x), 1.f);
-  *reinterpret_cast <uintptr_t *> (base_of_image + 0x219c4f0) = reinterpret_cast <uintptr_t> (game_model_data_manager);
+  *reinterpret_cast <uintptr_t *> (base_address + 0x219c4f0) = reinterpret_cast <uintptr_t> (game_model_data_manager);
   struct game_model y {};
   fill (game_model_data_manager, end (game_model_data_manager), y);
 
@@ -603,315 +603,200 @@ rigidbody::is_to_be_vanished (struct game_object &obj)
 void
 init ()
 {
-  switch (image_id)
+  object_data_offset_table = reinterpret_cast <uintptr_t (*)[4]> (base_address + 0x1e38710);
+  game_object_ptr = reinterpret_cast <struct game_object *> (base_address + 0x3195300);
+  in_pause_ptr = reinterpret_cast <uint8_t *> (base_address + 0x211e753);
+  vanish_timer_table_ptr = reinterpret_cast <int32_t *> (base_address + 0x211e990);
+
   {
-  case ImageId::NGS2SteamAE:
-    object_data_offset_table = reinterpret_cast <uintptr_t (*)[4]> (base_of_image + 0x1e38710);
-    game_object_ptr = reinterpret_cast <struct game_object *> (base_of_image + 0x3195300);
-    in_pause_ptr = reinterpret_cast <uint8_t *> (base_of_image + 0x211e753);
-    vanish_timer_table_ptr = reinterpret_cast <int32_t *> (base_of_image + 0x211e990);
+    using namespace hit;
+    // This circumvents the block for triggering the EFF_ArrowHitBlood
+    // which makes blood particles when hitting enemies with an arrow.
+    // We have chosen `and' over `xor' becase it has the same size of codes.
+    // and eax, 0
+    patch1 = new Patch {0x1048888, make_bytes (0x83, 0xe0, 0x00)};
 
-    {
-      using namespace hit;
-      // This circumvents the block for triggering the EFF_ArrowHitBlood
-      // which makes blood particles when hitting enemies with an arrow.
-      // We have chosen `and' over `xor' becase it has the same size of codes.
-      // and eax, 0
-      patch1 = new Patch {0x1048888, make_bytes (0x83, 0xe0, 0x00)};
+    // These make Ryu's bow, Momiji's bow and Rachel's gatling gun attack category
+    // 0x1002 which is needed to make EFF_ArrowHitBlood work.
+    patch2 = new Patch {0x17f25c8, uint16_t {0x1002}};
+    patch3 = new Patch {0x17f0428, uint16_t {0x1002}};
+    patch4 = new Patch {0x17f3ca8, uint16_t {0x1002}};
 
-      // These make Ryu's bow, Momiji's bow and Rachel's gatling gun attack category
-      // 0x1002 which is needed to make EFF_ArrowHitBlood work.
-      patch2 = new Patch {0x17f25c8, uint16_t {0x1002}};
-      patch3 = new Patch {0x17f0428, uint16_t {0x1002}};
-      patch4 = new Patch {0x17f3ca8, uint16_t {0x1002}};
+    // Credits: Fiend Busa
+    // This is the hitstop (micro freeeze) intensity when Ryu dismembers an enemy's limb.
+    // The higher the value, the longer it freezes. They set 3 by default.
+    patch5 = new Patch {0x1457f6d + 6, 0};
 
-      // Credits: Fiend Busa
-      // This is the hitstop (micro freeeze) intensity when Ryu dismembers an enemy's limb.
-      // The higher the value, the longer it freezes. They set 3 by default.
-      patch5 = new Patch {0x1457f6d + 6, 0};
+    // These make the enemy dead state detection delayed.
+    // jmp 0xa0
+    patch6 = new Patch {0x0f29437, make_bytes (0xe9, 0xa0, 0x00, 0x00, 0x00)};
+    // xor eax, eax
+    patch7 = new Patch {0x0f294dc, make_bytes (0x31, 0xc0)};
+  }
+  {
+    using namespace bloodparticle;
+    // These invoke large blood particles effect (each for humans and fiends).
+    patch1 = new Patch {0x120a13f + 1, 0x075f720 - (0x120a13f + 5)};
+    patch2 = new Patch {0x120a0f0 + 1, 0x075fd20 - (0x120a0f0 + 5)};
 
-      // These make the enemy dead state detection delayed.
-      // jmp 0xa0
-      patch6 = new Patch {0x0f29437, make_bytes (0xe9, 0xa0, 0x00, 0x00, 0x00)};
-      // xor eax, eax
-      patch7 = new Patch {0x0f294dc, make_bytes (0x31, 0xc0)};
-    }
-    {
-      using namespace bloodparticle;
-      // These invoke large blood particles effect (each for humans and fiends).
-      patch1 = new Patch {0x120a13f + 1, 0x075f720 - (0x120a13f + 5)};
-      patch2 = new Patch {0x120a0f0 + 1, 0x075fd20 - (0x120a0f0 + 5)};
+    // Blood particles for obliteration (the value is passed to FUN_141205a40).
+    // 2 == small (default), 3 == large but faint (it is used when in water),
+    // 4 == large, 5 == large and last longer (meybe not used in NG2, but in NGS1).
+    patch3 = new Patch {0x12058c9 + 3, uint8_t {0x4u}};
+    *reinterpret_cast <uintptr_t *> (base_address + 0x1c8e218) = base_address + 0x12058b0;
+    patch4 = new Patch {0x1205899 + 3, uint8_t {0x5u}};
+    *reinterpret_cast <uintptr_t *> (base_address + 0x1c8e1f8) = base_address + 0x1205880;
+  }
 
-      // Blood particles for obliteration (the value is passed to FUN_141205a40).
-      // 2 == small (default), 3 == large but faint (it is used when in water),
-      // 4 == large, 5 == large and last longer (meybe not used in NG2, but in NGS1).
-      patch3 = new Patch {0x12058c9 + 3, uint8_t {0x4u}};
-      *reinterpret_cast <uintptr_t *> (base_of_image + 0x1c8e218) = base_of_image + 0x12058b0;
-      patch4 = new Patch {0x1205899 + 3, uint8_t {0x5u}};
-      *reinterpret_cast <uintptr_t *> (base_of_image + 0x1c8e1f8) = base_of_image + 0x1205880;
-    }
+  {
+    using namespace bloodstamp;
+    // These make NG2 red blood stains on the ground. We change the calling functions to the function of oil stains,
+    // because it can produce NG2 like blood stains (need to modify game data "04413.dat").
 
-    {
-      using namespace bloodstamp;
-      // These make NG2 red blood stains on the ground. We change the calling functions to the function of oil stains,
-      // because it can produce NG2 like blood stains (need to modify game data "04413.dat").
+    // For BloodStampEffect.
+    patch1 = new Patch {0x120cc1d + 1, 0x077b010 - (0x120cc1d + 5)};
+    patch2 = new Patch {0x120cbe1 + 1, 0x077b010 - (0x120cbe1 + 5)};
+    // For BloodSpreadStampEffect.
+    patch3 = new Patch {0x120c82d + 1, 0x077b010 - (0x120c82d + 5)};
+    patch4 = new Patch {0x120c7f1 + 1, 0x077b010 - (0x120c7f1 + 5)};
+    // For ?.
+    patch5 = new Patch {0x120daa5 + 1, 0x077ce10 - (0x120daa5 + 5)};
+    patch6 = new Patch {0x120da69 + 1, 0x077ce10 - (0x120da69 + 5)};
 
-      // For BloodStampEffect.
-      patch1 = new Patch {0x120cc1d + 1, 0x077b010 - (0x120cc1d + 5)};
-      patch2 = new Patch {0x120cbe1 + 1, 0x077b010 - (0x120cbe1 + 5)};
-      // For BloodSpreadStampEffect.
-      patch3 = new Patch {0x120c82d + 1, 0x077b010 - (0x120c82d + 5)};
-      patch4 = new Patch {0x120c7f1 + 1, 0x077b010 - (0x120c7f1 + 5)};
-      // For ?.
-      patch5 = new Patch {0x120daa5 + 1, 0x077ce10 - (0x120daa5 + 5)};
-      patch6 = new Patch {0x120da69 + 1, 0x077ce10 - (0x120da69 + 5)};
+    // These make bloodstains last forever.
+    patch7 = new Patch {0x120cafe, concat (NOP7, uint8_t {0xeb})};
+    patch8 = new Patch {0x120c70e, concat (NOP7, uint8_t {0xeb})};
 
-      // These make bloodstains last forever.
-      patch7 = new Patch {0x120cafe, concat (NOP7, uint8_t {0xeb})};
-      patch8 = new Patch {0x120c70e, concat (NOP7, uint8_t {0xeb})};
+    BloodStampEffectManager_vfunction2_hook = new VFPHook {0x188a890, BloodStampEffectManager_vfunction2};
+    SphericalResourceGenerator_vfunction2_hook = new VFPHook {0x18c5578, SphericalResourceGenerator_vfunction2};
+  }
 
-      BloodStampEffectManager_vfunction2_hook = new VFPHook {0x188a890, BloodStampEffectManager_vfunction2};
-      SphericalResourceGenerator_vfunction2_hook = new VFPHook {0x18c5578, SphericalResourceGenerator_vfunction2};
-    }
+  {
+    using namespace dismember;
 
-    {
-      using namespace dismember;
+    update_SUP_NodeObj_visibility_hook = new SimpleInlineHook {0x1455880, update_SUP_NodeObj_visibility <0x1e38710>};
+    get_OPTscat_indices_hook = new SimpleInlineHook {0x144cb00, get_OPTscat_indices};
 
-      update_SUP_NodeObj_visibility_hook = new SimpleInlineHook {0x1455880, update_SUP_NodeObj_visibility <0x1e38710>};
-      get_OPTscat_indices_hook = new SimpleInlineHook {0x144cb00, get_OPTscat_indices};
+    // We directly detour invoke_VanishMutilationRootEffect function to invoke_BloodMutilationRootEffect function.
+    // Both functions parameters look the same.
+    patch1 = new Patch {0x145866a + 1, 0x1220060 - (0x145866a + 5)};
 
-      // We directly detour invoke_VanishMutilationRootEffect function to invoke_BloodMutilationRootEffect function.
-      // Both functions parameters look the same.
-      patch1 = new Patch {0x145866a + 1, 0x1220060 - (0x145866a + 5)};
+    // We detour alloc_BloodMutilationRootEffect to alloc_BloodMutilationRootEffect_wrapper, which calls
+    // alloc_BloodMutilationRootEffect internally.
+    patch2 = new Patch {0x12201f6 + 1, 0x1206ec0 - (0x12201f6 + 5)};
+    // We also modify the internal jump table to make larger blood jet always.
+    patch3 = new Patch {0x1207430, *reinterpret_cast <uint32_t (*)[4]> (base_address + 0x1207430 + 4 * 0x10)};
 
-      // We detour alloc_BloodMutilationRootEffect to alloc_BloodMutilationRootEffect_wrapper, which calls
-      // alloc_BloodMutilationRootEffect internally.
-      patch2 = new Patch {0x12201f6 + 1, 0x1206ec0 - (0x12201f6 + 5)};
-      // We also modify the internal jump table to make larger blood jet always.
-      patch3 = new Patch {0x1207430, *reinterpret_cast <uint32_t (*)[4]> (base_of_image + 0x1207430 + 4 * 0x10)};
+    // We directly detour invoke_VanishViscosityEffect function to invoke_MutilationViscosityBloodEffect function.
+    // Both functions parameters look the same.
+    patch4 = new Patch {0x1458761 + 1, 0x121fe20 - (0x1458761 + 5)};
 
-      // We directly detour invoke_VanishViscosityEffect function to invoke_MutilationViscosityBloodEffect function.
-      // Both functions parameters look the same.
-      patch4 = new Patch {0x1458761 + 1, 0x121fe20 - (0x1458761 + 5)};
-
-      // We make invoke_VanishCrushRootEffect_or_BloodCrushRootEffect function always
-      // invoke BloodCrushRootEffect.
-      patch5 = new Patch {0x1460d34, concat (NOP9, NOP9, NOP9, NOP7, uint8_t {0xeb})};
+    // We make invoke_VanishCrushRootEffect_or_BloodCrushRootEffect function always
+    // invoke BloodCrushRootEffect.
+    patch5 = new Patch {0x1460d34, concat (NOP9, NOP9, NOP9, NOP7, uint8_t {0xeb})};
 
 
-      // Additional blood shed for crushing effect.
-      patch7 = new Patch {0x144c0d0, concat (NOP5, NOP5)};
+    // Additional blood shed for crushing effect.
+    patch7 = new Patch {0x144c0d0, concat (NOP5, NOP5)};
 
-      // Credits: Fiend Busa
-      // Limbs stay until the timer reach its limit. The limit is 1 by default,
-      // We just disable the timer.
-      // xor eax eax; nop4
-      patch8 = new Patch {0x145a338, concat (make_bytes (0x31, 0xc0), NOP4)};
+    // Credits: Fiend Busa
+    // Limbs stay until the timer reach its limit. The limit is 1 by default,
+    // We just disable the timer.
+    // xor eax eax; nop4
+    patch8 = new Patch {0x145a338, concat (make_bytes (0x31, 0xc0), NOP4)};
 
-      // We disable the lump appearance timer.
-      patch9 = new Patch {0x144ae80, concat (make_bytes (0x31, 0xc0), NOP4)};
+    // We disable the lump appearance timer.
+    patch9 = new Patch {0x144ae80, concat (make_bytes (0x31, 0xc0), NOP4)};
 
-      // Credit: enhuhu
-      // This replaces EFF_CommonIzunaBloodExp which produces dim purple effect with
-      // EFF_CommonWazaIzuna.
-      *reinterpret_cast <uintptr_t *> (base_of_image + 0x1c74980) = base_of_image + 0x100a990;
+    // Credit: enhuhu
+    // This replaces EFF_CommonIzunaBloodExp which produces dim purple effect with
+    // EFF_CommonWazaIzuna.
+    *reinterpret_cast <uintptr_t *> (base_address + 0x1c74980) = base_address + 0x100a990;
 
-      // This replaces EFF_CommonSuicideBloodExp which produces dim purple effect with
-      // EFF_CommonWazaIzuna.
-      *reinterpret_cast <uintptr_t *> (base_of_image + 0x1c74900) = base_of_image + 0x100a990;
-    }
+    // This replaces EFF_CommonSuicideBloodExp which produces dim purple effect with
+    // EFF_CommonWazaIzuna.
+    *reinterpret_cast <uintptr_t *> (base_address + 0x1c74900) = base_address + 0x100a990;
+  }
 
-    {
-      using namespace afterimage;
+  {
+    using namespace afterimage;
 
-      afterimage::update_afterimage_params <0x1e39b40> ();
-      // We rewrite update interval check (to make it work when the interval is 1).
-      patch1 = new Patch {0x1053d20 + 2, uint8_t {0}};
-    }
+    afterimage::update_afterimage_params <0x1e39b40> ();
+    // We rewrite update interval check (to make it work when the interval is 1).
+    patch1 = new Patch {0x1053d20 + 2, uint8_t {0}};
+  }
 
-    {
-      using namespace rigidbody;
+  {
+    using namespace rigidbody;
 
-      // Fix corpse data initialization.
-      // xorps xmm0, xmm0; xorps xmm1, xmm1; nop2;
-      patch1 = new Patch {0x145e67a, make_bytes(0x0f, 0x57, 0xc0, 0x0f, 0x57, 0xc9, 0x66, 0x90)};
+    // Fix corpse data initialization.
+    // xorps xmm0, xmm0; xorps xmm1, xmm1; nop2;
+    patch1 = new Patch {0x145e67a, make_bytes(0x0f, 0x57, 0xc0, 0x0f, 0x57, 0xc9, 0x66, 0x90)};
 
-      corpse_table_ptr = reinterpret_cast <struct corpse_object *> (base_of_image + 0x6439cc0);
-      FUN_13ffb50_hook = new SimpleInlineHook {0x13ffb50, FUN_13ffb50};
+    corpse_table_ptr = reinterpret_cast <struct corpse_object *> (base_address + 0x6439cc0);
+    FUN_13ffb50_hook = new SimpleInlineHook {0x13ffb50, FUN_13ffb50};
 
-      // This rewrites the reset corpses loop to co-op with our codes.
-      // nop2; lea rax, [rbx+1808]; cmp qword [rax], 0; je imm;
-      patch2_1 = new Patch {0x145d60a,
-	  make_bytes (0x66, 0x90,
-		      0x48, 0x8d, 0x83, 0x08, 0x18, 0x00, 0x00,
-		      0x48, 0x83, 0x38, 0x00,
-		      0x74, 0x11,
-		      0x48, 0x8b, 0x00)
-      };
-      // jne 0x145d60a;
-      patch2_2 = new Patch {0x145d635 + 1, concat (uint8_t {0xd5})};
+    // This rewrites the reset corpses loop to co-op with our codes.
+    // nop2; lea rax, [rbx+1808]; cmp qword [rax], 0; je imm;
+    patch2_1 = new Patch {0x145d60a,
+	make_bytes (0x66, 0x90,
+		    0x48, 0x8d, 0x83, 0x08, 0x18, 0x00, 0x00,
+		    0x48, 0x83, 0x38, 0x00,
+		    0x74, 0x11,
+		    0x48, 0x8b, 0x00)
+    };
+    // jne 0x145d60a;
+    patch2_2 = new Patch {0x145d635 + 1, concat (uint8_t {0xd5})};
 
-      // This prevents the corpse_table[0] from accidtally being used since we
-      // do not use corpse_table[0].
-      patch3 = new Patch {0x145d7d8, concat (NOP5, NOP5)};
+    // This prevents the corpse_table[0] from accidtally being used since we
+    // do not use corpse_table[0].
+    patch3 = new Patch {0x145d7d8, concat (NOP5, NOP5)};
 
-      // This prevents a corpse timer from updating even when there are many
-      // corpses since we manually release corpses by ourselves.
-      // xor eax, eax; nop3;
-      patch4 = new Patch {0x145f584, concat (make_bytes (0x31, 0xc0), NOP3)};
+    // This prevents a corpse timer from updating even when there are many
+    // corpses since we manually release corpses by ourselves.
+    // xor eax, eax; nop3;
+    patch4 = new Patch {0x145f584, concat (make_bytes (0x31, 0xc0), NOP3)};
 
-      release_corpse = reinterpret_cast <decltype (release_corpse)> (base_of_image + 0x145dde0);
+    release_corpse = reinterpret_cast <decltype (release_corpse)> (base_address + 0x145dde0);
 
-      rigidbody_id_table_ptr = reinterpret_cast <uint32_t (*)[0x80]> (base_of_image + 0x64b4850);
-      character_ptr = reinterpret_cast <struct character *> (base_of_image + 0x2f78b10);
-      limb_count_ptr = reinterpret_cast <uint32_t *> (base_of_image + 0x21b3000);
-      limb_manager_ptr = reinterpret_cast <struct limb_data (*)[4]> (base_of_image + 0x6426880);
-      lump_manager_ptr = reinterpret_cast <lump_manager *> (base_of_image + 0x642a6b0);
-      get_lump_pose_matrix = reinterpret_cast <decltype (get_lump_pose_matrix)> (base_of_image + 0x144a330);
-      get_pose_matrix_hook = new SimpleInlineHook {0xc0fdc0, get_pose_matrix};
+    rigidbody_id_table_ptr = reinterpret_cast <uint32_t (*)[0x80]> (base_address + 0x64b4850);
+    character_ptr = reinterpret_cast <struct character *> (base_address + 0x2f78b10);
+    limb_count_ptr = reinterpret_cast <uint32_t *> (base_address + 0x21b3000);
+    limb_manager_ptr = reinterpret_cast <struct limb_data (*)[4]> (base_address + 0x6426880);
+    lump_manager_ptr = reinterpret_cast <lump_manager *> (base_address + 0x642a6b0);
+    get_lump_pose_matrix = reinterpret_cast <decltype (get_lump_pose_matrix)> (base_address + 0x144a330);
+    get_pose_matrix_hook = new SimpleInlineHook {0xc0fdc0, get_pose_matrix};
 
-      is_stationary_hook = new SimpleInlineHook {0x0f87410, is_stationary};
+    is_stationary_hook = new SimpleInlineHook {0x0f87410, is_stationary};
 
-      // These keep fiends and enemies on stairs from vanishing.
-      patch5 = new Patch {0xf291de, concat (NOP9, NOP8, NOP3)};
-      is_to_be_vanished_hook = new SimpleInlineHook {0x1635e60, is_to_be_vanished};
+    // These keep fiends and enemies on stairs from vanishing.
+    patch5 = new Patch {0xf291de, concat (NOP9, NOP8, NOP3)};
+    is_to_be_vanished_hook = new SimpleInlineHook {0x1635e60, is_to_be_vanished};
 
-      init_game_model_data_manager_hook = new SimpleInlineHook {0x141b6d0, init_game_model_data_manager};
+    init_game_model_data_manager_hook = new SimpleInlineHook {0x141b6d0, init_game_model_data_manager};
 
-      auto NOP_CMP_CL_IMM_JB_IMM = make_bytes (0x90, 0x80, 0xf9, 0xa0, 0x72);
-      auto NOP_CMP_DL_IMM_JB_IMM = make_bytes (0x90, 0x80, 0xfa, 0xa0, 0x72);
-      auto CMP_R8B_IMM_JB_IMM = make_bytes (0x41, 0x80, 0xf8, 0xa0, 0x72);
-      patch6_1 = new Patch {0x0f896d0, NOP_CMP_CL_IMM_JB_IMM};
-      patch6_2 = new Patch {0x0f89700, NOP_CMP_CL_IMM_JB_IMM};
-      patch6_3 = new Patch {0x1377bb0, NOP_CMP_CL_IMM_JB_IMM};
-      //patch6_4 = new Patch {0x1381ce5, NOP_CMP_CL_IMM_JB_IMM};
-      patch6_5 = new Patch {0x14075d0, NOP_CMP_CL_IMM_JB_IMM};
-      //patch6_6 = new Patch {0x140b805, NOP_CMP_CL_IMM_JB_IMM};
-      patch6_7 = new Patch {0x140c8e0, NOP_CMP_CL_IMM_JB_IMM};
-      patch6_8 = new Patch {0x141a257, NOP_CMP_DL_IMM_JB_IMM};
-      //patch6_9 = new Patch {0x141b0d6, NOP_CMP_CL_IMM_JB_IMM};
-      //patch6_10 = new Patch {0x141ba79, NOP_CMP_CL_IMM_JB_IMM};
-      patch6_11 = new Patch {0x15f1e08, NOP_CMP_CL_IMM_JB_IMM};
-      patch6_12 = new Patch {0x15f2ad2, NOP_CMP_CL_IMM_JB_IMM};
-      patch6_13 = new Patch {0x163507a, CMP_R8B_IMM_JB_IMM};
+    auto NOP_CMP_CL_IMM_JB_IMM = make_bytes (0x90, 0x80, 0xf9, 0xa0, 0x72);
+    auto NOP_CMP_DL_IMM_JB_IMM = make_bytes (0x90, 0x80, 0xfa, 0xa0, 0x72);
+    auto CMP_R8B_IMM_JB_IMM = make_bytes (0x41, 0x80, 0xf8, 0xa0, 0x72);
+    patch6_1 = new Patch {0x0f896d0, NOP_CMP_CL_IMM_JB_IMM};
+    patch6_2 = new Patch {0x0f89700, NOP_CMP_CL_IMM_JB_IMM};
+    patch6_3 = new Patch {0x1377bb0, NOP_CMP_CL_IMM_JB_IMM};
+    //patch6_4 = new Patch {0x1381ce5, NOP_CMP_CL_IMM_JB_IMM};
+    patch6_5 = new Patch {0x14075d0, NOP_CMP_CL_IMM_JB_IMM};
+    //patch6_6 = new Patch {0x140b805, NOP_CMP_CL_IMM_JB_IMM};
+    patch6_7 = new Patch {0x140c8e0, NOP_CMP_CL_IMM_JB_IMM};
+    patch6_8 = new Patch {0x141a257, NOP_CMP_DL_IMM_JB_IMM};
+    //patch6_9 = new Patch {0x141b0d6, NOP_CMP_CL_IMM_JB_IMM};
+    //patch6_10 = new Patch {0x141ba79, NOP_CMP_CL_IMM_JB_IMM};
+    patch6_11 = new Patch {0x15f1e08, NOP_CMP_CL_IMM_JB_IMM};
+    patch6_12 = new Patch {0x15f2ad2, NOP_CMP_CL_IMM_JB_IMM};
+    patch6_13 = new Patch {0x163507a, CMP_R8B_IMM_JB_IMM};
 
-      // Allocate more memory for model manager.
-      patch7 = new Patch {0x146794d + 1, 0x800000u};
+    // Allocate more memory for model manager.
+    patch7 = new Patch {0x146794d + 1, 0x800000u};
 
-      // This calls the proper reset corpses function when continuing from death.
-      patch8 = new Patch {0x1444f23 + 1, 0x145dde0 - (0x1444f23 + 5)};
-    }
-
-    break;
-  case ImageId::NGS2SteamJP:
-    object_data_offset_table = reinterpret_cast <uintptr_t (*)[4]> (base_of_image + 0x1e37710);
-    game_object_ptr = reinterpret_cast <struct game_object *> (base_of_image + 0x3194300);
-    in_pause_ptr = reinterpret_cast <uint8_t *> (base_of_image + 0x211e753);
-
-    {
-      using namespace hit;
-      patch1 = new Patch {0x10485e8, make_bytes (0x83, 0xe0, 0x00)};
-      patch2 = new Patch {0x17f15c8, uint16_t {0x1002}};
-      patch3 = new Patch {0x17ef428, uint16_t {0x1002}};
-      patch4 = new Patch {0x17f2ca8, uint16_t {0x1002}};
-      patch5 = new Patch {0x1457dd1 + 6, 0};
-      patch6 = new Patch {0x0f29237, make_bytes (0xe9, 0xa0, 0x00, 0x00, 0x00)};
-      patch7 = new Patch {0x0f292dc, make_bytes (0x31, 0xc0)};
-    }
-    {
-      using namespace bloodparticle;
-      patch1 = new Patch {0x1209e9f + 1, 0x075f760 - (0x1209e9f + 5)};
-      patch2 = new Patch {0x1209e50 + 1, 0x075ff60 - (0x1209e50 + 5)};
-      patch3 = new Patch {0x1205629 + 3, uint8_t {0x4u}};
-      *reinterpret_cast <uintptr_t *> (base_of_image + 0x1c8d218) = base_of_image + 0x1205610;
-      patch4 = new Patch {0x12055f9 + 3, uint8_t {0x5u}};
-      *reinterpret_cast <uintptr_t *> (base_of_image + 0x1c8d2d8) = base_of_image + 0x12055e0;
-    }
-    {
-      using namespace bloodstamp;
-      patch1 = new Patch {0x120c97d + 1, 0x077b050 - (0x120c97d + 5)};
-      patch2 = new Patch {0x120c941 + 1, 0x077b050 - (0x120c941 + 5)};
-      patch3 = new Patch {0x120c58d + 1, 0x077b050 - (0x120c58d + 5)};
-      patch4 = new Patch {0x120c551 + 1, 0x077b050 - (0x120c551 + 5)};
-      patch5 = new Patch {0x120d805 + 1, 0x077ce50 - (0x120d805 + 5)};
-      patch6 = new Patch {0x120d7c9 + 1, 0x077ce50 - (0x120d7c9 + 5)};
-      patch7 = new Patch {0x120c85e, concat (NOP7, uint8_t {0xeb})};
-      patch8 = new Patch {0x120c46e, concat (NOP7, uint8_t {0xeb})};
-      BloodStampEffectManager_vfunction2_hook = new VFPHook {0x1889890, BloodStampEffectManager_vfunction2};
-      SphericalResourceGenerator_vfunction2_hook = new VFPHook {0x18c4578, SphericalResourceGenerator_vfunction2};
-    }
-    {
-      using namespace dismember;
-      update_SUP_NodeObj_visibility_hook = new SimpleInlineHook {0x14556a0, update_SUP_NodeObj_visibility <0x1e37710>};
-      get_OPTscat_indices_hook = new SimpleInlineHook {0x144c8e0, get_OPTscat_indices};
-      patch1 = new Patch {0x14584f5 + 1, 0x121fde0 - (0x14584f5 + 5)};
-      patch2 = new Patch {0x121ff76 + 1, 0x1206c20 - (0x121ff76 + 5)};
-      patch3 = new Patch {0x1207190, *reinterpret_cast <uint32_t (*)[4]> (base_of_image + 0x1207190 + 4 * 0x10)};
-      patch4 = new Patch {0x14585f8 + 1, 0x121fba0 - (0x14585f8 + 5)};
-      patch5 = new Patch {0x1460904, concat (NOP9, NOP9, NOP9, NOP7, uint8_t {0xeb})};
-      patch7 = new Patch {0x144beb0, concat (NOP5, NOP5)};
-      patch8 = new Patch {0x1459e0d , concat (make_bytes (0x31, 0xc0), NOP4)};
-      patch9 = new Patch {0x144ac60, concat (make_bytes (0x31, 0xc0), NOP4)};
-      *reinterpret_cast <uintptr_t *> (base_of_image + 0x1c73980) = base_of_image + 0x100a790;
-      *reinterpret_cast <uintptr_t *> (base_of_image + 0x1c73900) = base_of_image + 0x100a790;
-    }
-    {
-      using namespace dismember::jp;
-      // These are for circumventing the head dismemberment disablers
-      // which can be found in the Asia version of the game.
-      
-      // These make head dismemberment works.
-      patch1 = new Patch {0x1456e71, concat (NOP9, NOP9, NOP5)};
-      patch2 = new Patch {0x1457ef0, concat (NOP9, NOP5)};
-      patch3 = new Patch {0x14583e5, concat (NOP9, NOP5)};
-
-      // In order to prevent the head from getting back to its body.
-      constexpr auto SETNZ_DIL = make_bytes (0x40, 0x0f, 0x95, 0xc7);
-      patch4 = new Patch {0x145e45d, concat (NOP9, NOP9, NOP5, SETNZ_DIL)};
-      patch5 = new Patch {0x145e824, concat (NOP9, NOP9, NOP7)};
-
-      // I could not find any visible differences when disabling these, but
-      // the codes look similar to the others.
-      patch6 = new Patch {0x0c31190, concat (NOP9, NOP5, NOP5)};
-      patch7 = new Patch {0x1456dcc, concat (NOP9, NOP8, NOP7)};
-      patch8 = new Patch {0x14cff5e, concat (NOP9, NOP9, NOP5, NOP5)};
-    }
-    {
-      using namespace afterimage;
-      afterimage::update_afterimage_params <0x1e38b40> ();
-      patch1 = new Patch {0x1053a80 + 2, uint8_t {0}};
-    }
-    {
-      using namespace rigidbody;
-      patch1 = new Patch {0x145e20a, make_bytes(0x0f, 0x57, 0xc0, 0x0f, 0x57, 0xc9, 0x66, 0x90)};
-      patch2_1 = new Patch {0x145d19a,
-	  make_bytes (0x66, 0x90,
-		      0x48, 0x8d, 0x83, 0x08, 0x18, 0x00, 0x00,
-		      0x48, 0x83, 0x38, 0x00,
-		      0x74, 0x11,
-		      0x48, 0x8b, 0x00)
-      };
-      patch2_2 = new Patch {0x145d1c5 + 1, concat (uint8_t {0xd5})};
-      patch3 = new Patch {0x145d368, concat (NOP5, NOP5)};
-      patch4 = new Patch {0x145f134, concat (make_bytes (0x31, 0xc0), NOP3)};
-
-      corpse_table_ptr = reinterpret_cast <struct corpse_object *> (base_of_image + 0x6438cc0);
-      FUN_13ffb50_hook = new SimpleInlineHook {0x13ff920, FUN_13ffb50};
-      lump_manager_ptr = reinterpret_cast <lump_manager *> (base_of_image + 0x64296b0);
-      get_lump_pose_matrix = reinterpret_cast <decltype (get_lump_pose_matrix)> (base_of_image + 0x144a110);
-      get_pose_matrix_hook = new SimpleInlineHook {0x0c0fe30, get_pose_matrix};
-
-      release_corpse = reinterpret_cast <decltype (release_corpse)> (base_of_image + 0x145d970);
-
-      rigidbody_id_table_ptr = reinterpret_cast <uint32_t (*)[0x80]> (base_of_image + 0x64b3850);
-      character_ptr = reinterpret_cast <struct character *> (base_of_image + 0x2f77b10);
-      limb_count_ptr = reinterpret_cast <uint32_t *> (base_of_image + 0x21b2000);
-      limb_manager_ptr = reinterpret_cast <struct limb_data (*)[4]> (base_of_image + 0x6425880);
-      lump_manager_ptr = reinterpret_cast <lump_manager *> (base_of_image + 0x64296b0);
-
-      is_stationary_hook = new SimpleInlineHook {0x0f87210, is_stationary};
-    }
-    break;
+    // This calls the proper reset corpses function when continuing from death.
+    patch8 = new Patch {0x1444f23 + 1, 0x145dde0 - (0x1444f23 + 5)};
   }
 }
 

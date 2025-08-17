@@ -27,23 +27,13 @@ init ()
 {
   using namespace std;
 
-  switch (image_id)
-  {
-  case ImageId::NGS2SteamAE:
-    // This fixes the "Return to main menu" hang up bug.
-    // It sees out of the index at the point.
-    patch1 = new Patch {0x13ddfa6 + 3, uint8_t {7}};
+  // This fixes the "Return to main menu" hang up bug.
+  // It sees out of the index at the point.
+  patch1 = new Patch {0x13ddfa6 + 3, uint8_t {7}};
 
-    // This fixes the never terminating bug. It enters dead lock at the point.
-    // jmp 0xde
-    patch2 = new Patch {0xC43060, make_bytes (0xe9, 0xde, 0x00, 0x00, 0x00)};
-    break;
-
-  case ImageId::NGS2SteamJP:
-    patch1 = new Patch {0x13ddd76 + 3, uint8_t {7}};
-    patch2 = new Patch {0x0c42e60, make_bytes (0xe9, 0xde, 0x00, 0x00, 0x00)};
-    break;
-  }
+  // This fixes the never terminating bug. It enters dead lock at the point.
+  // jmp 0xde
+  patch2 = new Patch {0xC43060, make_bytes (0xe9, 0xde, 0x00, 0x00, 0x00)};
 }
 
 } // namespace

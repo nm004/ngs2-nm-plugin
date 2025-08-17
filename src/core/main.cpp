@@ -24,20 +24,20 @@ using namespace std;
 namespace {
 
 BOOL pre_init (LPCWSTR);
-bool check_dlls ();
-
 SimpleInlineHook<decltype (SetCurrentDirectoryW)> *SetCurrentDirectoryW_hook
   = new SimpleInlineHook {SetCurrentDirectoryW, pre_init};
+
+bool check_dlls ();
 SimpleInlineHook<decltype (check_dlls)> *check_dlls_hook;
+
+struct Sigma2;
+void Sigma2_vfunction1 (struct Sigma2 *);
+VFPHook <decltype (Sigma2_vfunction1)> Sigma2_vfunction1_hook;
 
 Patch<Bytes<7>> *patch1;
 
-// "check_dlls()" is called from WinMain. WinMain expects that "check_dlls()" returns true to
-// continue the process, otherwise it aborts the process.
-//
-// We load plugins here. This always returns true.
-bool
-check_dlls ()
+void
+Sigma2_vfunction1 (Sigma2 *thisptr)
 {
   // Dll search paths starting from the current directory
   const TCHAR *search_paths[] = { TEXT("plugin\\"), };
@@ -63,6 +63,16 @@ check_dlls ()
       FindClose (hFindFile);
     }
 
+  Sigma2_vfunction1_hook.call (thisptr);
+}
+
+// "check_dlls()" is called from WinMain. WinMain expects that "check_dlls()" returns true to
+// continue the process, otherwise it aborts the process.
+//
+// We load plugins here. This always returns true.
+bool
+check_dlls ()
+{
   delete check_dlls_hook;
   return true;
 }
@@ -74,22 +84,9 @@ BOOL
 pre_init (LPCWSTR lpPathName)
 {
   constexpr auto XOR_R8_NOP4 = make_bytes (0x4d, 0x31, 0xc0,  0x0f, 0x1f, 0x40, 0x00);
-  switch (image_id)
-  {
-  case ImageId::NGS1SteamAE:
-    check_dlls_hook = new SimpleInlineHook {0x571fd0, check_dlls};
-    // This allows users to run multiple instances of the game.
-    patch1 = new Patch {0x056c463, XOR_R8_NOP4};
-    break;
-  case ImageId::NGS2SteamAE:
-    check_dlls_hook = new SimpleInlineHook {0xb5c460, check_dlls};
-    patch1 = new Patch {0x1340d3b, XOR_R8_NOP4};
-    break;
-  case ImageId::NGS2SteamJP:
-    check_dlls_hook = new SimpleInlineHook {0xb5c4b0, check_dlls};
-    patch1 = new Patch {0x1340b0b, XOR_R8_NOP4};
-    break;
-  }
+  check_dlls_hook = new SimpleInlineHook {0xb5c460, check_dlls};
+  patch1 = new Patch {0x1340d3b, XOR_R8_NOP4};
+  Sigma2_vfunction1_hook = VFPHook {0x1462a00, Sigma2_vfunction1};
 
   delete SetCurrentDirectoryW_hook;
   return SetCurrentDirectoryW (lpPathName);
@@ -113,6 +110,6 @@ DllMain (HINSTANCE hinstDLL,
   return TRUE;
 }
 
-// We define the function as a stub.
+// We define this function as a stub.
 extern "C" DLLEXPORT void
 MiniDumpWriteDump () {}
